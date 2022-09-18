@@ -50,7 +50,7 @@ BOB = 1 # client 1
 data_alice_enc = crypten.load_from_party('/tmp/alice_train.pth', src=ALICE) # data from client 0
 data_bob_enc = crypten.load_from_party('/tmp/bob_train.pth', src=BOB)
 
-# train alice
+# train alice//test
 x_small = torch.rand(100, 1, 28, 28) # random data
 y_small = torch.randint(1, (100,)) # more random data
 label_eye = torch.eye(2)
