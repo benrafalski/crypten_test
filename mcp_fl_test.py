@@ -14,7 +14,7 @@ class ExampleNet(nn.Module):
     def __init__(self, pass_num):
         super(ExampleNet, self).__init__()
         self.pass_num = pass_num
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=5, padding=0)
+        # self.conv1 = nn.Conv2d(1, 16, kernel_size=5, padding=0)
         self.fc1 = nn.Linear(16 * 12 * 12, 100)
         self.fc2 = nn.Linear(100, 2) # For binary classification, final layer needs only 2 outputs
  
@@ -25,19 +25,45 @@ class ExampleNet(nn.Module):
     
     def forward(self, x):  
         print(f'calling forward() func')
-        if self.pass_num == 1: 
-            out = self.conv1(x)
-            out = F.relu(out)
-            return out
-        elif self.pass_num == 2:
-            out = F.max_pool2d(x, 2)
-            out = out.view(-1, 16 * 12 * 12)
-            out = self.fc1(out)
-            out = F.relu(out)
-            out = self.fc2(out)
-            return out
-        else:
-            return self.forwardserver(x)
+        # if x.grad_fn == None: 
+        #     out = self.conv1(x)
+        #     out = F.relu(out)
+        #     out = F.max_pool2d(out, 2)
+        #     out = out.view(-1, 16 * 12 * 12)
+        #     out = self.fc1(out)
+        #     return out
+        # # elif self.pass_num == 2:
+        # #     out = F.max_pool2d(x, 2)
+        # #     out = out.view(-1, 16 * 12 * 12)
+        # #     out = self.fc1(out)
+        # #     out = F.relu(out)
+        # #     out = self.fc2(out)
+        # #     return out
+        # # else:
+        # #     return self.forwardserver(x)
+        # else:
+            
+            
+            
+        #     out = F.relu(x)
+        #     out = self.fc2(out)
+        #     self.pass_num = 3
+        #     return out
+
+
+        
+        # out = self.conv1(x)
+        # out = F.relu(out)
+        # return out
+    
+        # out = F.max_pool2d(x, 2)
+        # out = out.view(-1, 16 * 12 * 12)
+        # out = self.fc1(out)
+        # out = F.relu(out)
+        # out = self.fc2(out)
+        # return out
+    
+        return self.forwardserver(x)
 
     def forward1(self, x):
         out = self.conv1(x)
@@ -54,13 +80,16 @@ class ExampleNet(nn.Module):
         self.pass_num = 3
         return out
 
-    def forwardserver(self, x): 
-        out = self.conv1(x)
-        out = F.relu(out)
-        out = F.max_pool2d(out, 2)
-        out = out.view(-1, 16 * 12 * 12)
-        out = self.fc1(out)
-        out = F.relu(out)
+    def forwardserver(self, x):
+        # print(f"x  {x.grad_fn}")
+        # out = self.conv1(x)
+        # out = F.relu(out)
+        # print(f"out = {out.grad_fn}")
+        
+        # out = F.max_pool2d(out, 2)
+        # out = out.view(-1, 16 * 12 * 12)
+        out = self.fc1(x)
+        out = out.relu()
         out = self.fc2(out)
         return out
     
@@ -103,25 +132,17 @@ num_epochs = 2
 # Train the model: SGD on encrypted data
 
 # forward pass client
-output_client = model(x_train)
-print(f'outclient: {output_client}')
-# output_firstpass = model(output_client)
-# loss_value = loss(output_firstpass, y_train)
-    
-
-model_plaintext = ExampleNet(2)
-dummy_input = torch.empty(1, 1, 28, 28)
-model = crypten.nn.from_pytorch(model_plaintext, dummy_input)
-model.encrypt()
+output = model(x_train)
+print(f'outclient: {output.grad_fn}')
+# output_firstpass = model(output)
+loss_value = loss(output, y_train)
 
 
-model.train() # Change to training mode
-loss = crypten.nn.MSELoss() # Choose loss functions
 
 # Set parameters: learning rate, num_epochs
 learning_rate = 0.001
 num_epochs = 2
-out = model(output_client)
+# out = model(output_client)
 
 # # set gradients to zero
 # model.zero_grad()
