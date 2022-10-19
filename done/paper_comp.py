@@ -5,6 +5,7 @@ import crypten.nn as nn
 # create model , criterion , and optimizer:
 
 # is about 2.5–3 orders of magnitu***************************
+# The results also show that increasing the batch size is an effective way to reduce inference
 model_enc = nn. Sequential (
 nn.Linear(sample_dim , hidden_dim ),
 nn.ReLU (),
