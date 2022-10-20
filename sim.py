@@ -12,6 +12,7 @@ print(f'\n\n input layer size: {n_input}\n hidden layer size: {n_hidden}\n outpu
 
 data_x = torch.randn(batch_size, n_input)
 data_y = (torch.rand(size=(batch_size, 1)) < 0.5).float()
+print(f'types: {type(data_x)}, {type(data_y)}')
 
 data_x_enc = crypten.cryptensor(data_x)
 data_y_enc = crypten.cryptensor(data_y)

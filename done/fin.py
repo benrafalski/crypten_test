@@ -10,6 +10,15 @@ import torchvision.transforms as transforms
 
 crypten.init()
 
+training_data = pd.read_csv("")
+
+
+
+
+
+
+
+
 # get data 
 # train_data = datasets.MNIST(root='dataset/', train=True, transform=transforms.ToTensor(), download=True)
 # test_data = datasets.MNIST(root='dataset/', train=False, transform=transforms.ToTensor(), download=True)
