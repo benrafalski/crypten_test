@@ -137,6 +137,11 @@ for epoch in range(EPOCHS):
 
     server_model.update_parameters(learning_rate)
 
+    # with torch.no_grad():
+    #     y_pred = model(X_test_enc)
+    #     correct = (torch.argmax(y_pred.get_plain_text(), dim=1) == y_test_tensor).type(torch.FloatTensor)
+    #     print(correct.mean())
+
 print(f"\n Training time: {time.time()-start_time} seconds")
 
 

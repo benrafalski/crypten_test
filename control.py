@@ -1,125 +1,81 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import crypten
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_iris
-import pandas as pd
-import time
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 import torch
+import torch.nn.functional as F
+import torch.nn as nn
+from torch.autograd import Variable
+import tqdm
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
-
-transforms = transforms.Compose([transforms.ToTensor()])
-
-n_input, n_hidden, n_out, batch_size, learning_rate = 4, 5, 3, 5, 0.001
+plt.style.use('ggplot')
 
 iris = load_iris()
-print(type(iris))
-data = iris['data']
-labels = iris['target']
-label_names = iris['target_names']
+X = iris['data']
+y = iris['target']
+names = iris['target_names']
 feature_names = iris['feature_names']
 
-# scaler = StandardScaler()
-# data = scaler.fit_transform(data)
+# Scale data to have mean 0 and variance 1 
+# which is importance for convergence of the neural network
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
+# Split the data set into training and testing
 X_train, X_test, y_train, y_test = train_test_split(
-    data, labels, test_size=0.2, random_state=2)
+    X_scaled, y, test_size=0.2, random_state=2)
 
-X_train_tensor = torch.tensor(X_train)
-X_test_tensor = torch.tensor(X_test)
-y_train_tensor = torch.tensor(y_train)
-y_test_tensor = torch.tensor(y_test)
-
-# y_train_one_hot = torch.nn.functional.one_hot(y_train_tensor)
-# y_test_one_hot = torch.nn.functional.one_hot(y_test_tensor)
-
-
-# X_train_enc = crypten.cryptensor(X_train_tensor)
-# X_test_enc = crypten.cryptensor(X_test_tensor)
-# y_train_enc = crypten.cryptensor(y_train_one_hot)
-# y_test_enc = crypten.cryptensor(y_test_one_hot)
-
-
-# print(
-#     f"\n\n Is the training data encrypted? {crypten.is_encrypted_tensor(X_train_enc)}")
-# print(
-#     f" Is the testing data encrypted? {crypten.is_encrypted_tensor(X_test_enc)}")
-
-
-class NN(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.layer1 = torch.nn.Sequential(
-            torch.nn.Linear(n_input, n_hidden),
-            torch.nn.Sigmoid()
-        )
-        self.layer2 = torch.nn.Sequential(
-            torch.nn.Linear(n_hidden, n_out),
-            torch.nn.Sigmoid()
-        )
-        self.serv = 1
-
+class Model(nn.Module):
+    def __init__(self, input_dim):
+        super(Model, self).__init__()
+        self.layer1 = nn.Linear(input_dim, 50)
+        self.layer2 = nn.Linear(50, 50)
+        self.layer3 = nn.Linear(50, 3)
+        
     def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer2(x)
+        x = F.relu(self.layer1(x))
+        x = F.relu(self.layer2(x))
+        x = F.softmax(self.layer3(x), dim=1)
         return x
 
+model     = Model(X_train.shape[1])
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+loss_fn   = nn.CrossEntropyLoss()
 
-model = NN()
-model.train()
+EPOCHS  = 100
+X_train = Variable(torch.from_numpy(X_train)).float()
+y_train = Variable(torch.from_numpy(y_train)).long()
+X_test  = Variable(torch.from_numpy(X_test)).float()
+y_test  = Variable(torch.from_numpy(y_test)).long()
 
-pred = model(X_train_tensor)
+loss_list     = np.zeros((EPOCHS,))
+accuracy_list = np.zeros((EPOCHS,))
 
-server_model = model
-
-loss_function = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(server_model.parameters(), lr=learning_rate)
-pred = server_model(X_train_tensor)
-loss = loss_function(pred, y_train_tensor)
-server_model.zero_grad()
-loss.backward()
-print(
-    f'\n Loss function results on the server side after second layer: {loss}')
-server_model.update_parameters(learning_rate)
-
-EPOCHS = 5
-print(f'\n Continuing training for {EPOCHS} epochs on server side...')
-losses = []
-start_time = time.time()
-for epoch in range(EPOCHS):
-    pred_y = server_model(X_train_tensor)
-    loss = loss_function(pred_y, y_train_tensor)
-    losses.append(loss.item())
-    server_model.zero_grad()
+for epoch in tqdm.trange(EPOCHS):
+    y_pred = model(X_train)
+    loss = loss_fn(y_pred, y_train)
+    loss_list[epoch] = loss.item()
+    
+    # Zero gradients
+    optimizer.zero_grad()
     loss.backward()
-
-    if epoch % 100 == 99:
-        print(f'\tepoch: {epoch}, loss: {loss}')
-
-    server_model.update_parameters(learning_rate)
-
-print(f"\n Training time: {time.time()-start_time} seconds")
-
+    optimizer.step()
+    
+    with torch.no_grad():
+        y_pred = model(X_test)
+        correct = (torch.argmax(y_pred, dim=1) == y_test).type(torch.FloatTensor)
+        accuracy_list[epoch] = correct.mean()
 
 
-# def test(model, device, test_loader):
-# server_model.eval()
-# test_loss = 0
-# correct = 0
+fig, (ax1, ax2) = plt.subplots(2, figsize=(12, 6), sharex=True)
 
-# output = model(X_test_enc)
-# with torch.no_grad():
-#     _, predictions = output.max(0)
-#     prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
-#     for i in range(30): 
-#         print(f'Expected: {label_names[y_test_tensor[i].item()]} vs. real: {label_names[prediction_tensor[i].item()]}')
-#     correct = (prediction_tensor == y_test_tensor).sum()
-#     samples = predictions.size(0)
-#     print(f'accuracy: {correct}/{samples} {float(correct)/float(samples) * 100:.2f}%')
+print(accuracy_list)
 
 
-
+ax1.plot(accuracy_list)
+ax1.set_ylabel("validation accuracy")
+ax2.plot(loss_list)
+ax2.set_ylabel("validation loss")
+ax2.set_xlabel("epochs")
