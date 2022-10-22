@@ -25,7 +25,7 @@ X_scaled = scaler.fit_transform(X)
 
 # Split the data set into training and testing
 X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled, y, test_size=0.2, random_state=2)
+    X_scaled, y, test_size=0.2, random_state=4)
 
 class Model(nn.Module):
     def __init__(self, input_dim):
@@ -40,9 +40,15 @@ class Model(nn.Module):
         x = F.softmax(self.layer3(x), dim=1)
         return x
 
-model     = Model(X_train.shape[1])
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+model     = Model(4)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-6)
+# optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_fn   = nn.CrossEntropyLoss()
+
+
+
+
+
 
 EPOCHS  = 100
 X_train = Variable(torch.from_numpy(X_train)).float()
