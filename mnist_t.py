@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_iris, load_digits
 import pandas as pd
 import time
 import torch
@@ -16,15 +16,16 @@ transforms = transforms.Compose([transforms.ToTensor()])
 
 crypten.init()
 
-n_input, n_hidden, n_out, batch_size, learning_rate = 4, 25, 3, 5, 0.001
+n_input, n_hidden, n_out, batch_size, learning_rate = 64, 100, 10, 5, 0.001
 
 # data stuff?
-iris = load_iris()
-print(type(iris))
+iris = load_digits()
+# print(type(iris))
 data = iris['data']
 labels = iris['target']
 label_names = iris['target_names']
-feature_names = iris['feature_names']
+feature_names = iris['images']
+# print(feature_names)
 
 scaler = StandardScaler()
 data = scaler.fit_transform(data)
@@ -34,10 +35,14 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # print(X_train)
 
+# print(X_train)
+
 X_train_tensor = torch.tensor(X_train)
 X_test_tensor = torch.tensor(X_test)
 y_train_tensor = torch.tensor(y_train)
 y_test_tensor = torch.tensor(y_test)
+
+# print(y_test_tensor)
 
 # targets_one_hot = torch.nn.functional.one_hot(targets, num_classes)
 # T = crypten.cryptensor(targets_one_hot)
@@ -91,6 +96,10 @@ class NN(crypten.nn.Module):
             crypten.nn.ReLU()
         )
         self.layer3 = crypten.nn.Sequential(
+            crypten.nn.Linear(n_hidden, n_hidden),
+            crypten.nn.ReLU()
+        )
+        self.layer4 = crypten.nn.Sequential(
             crypten.nn.Linear(n_hidden, n_out),
             crypten.nn.Softmax(1)
             # crypten.nn.Sigmoid()
@@ -103,10 +112,12 @@ class NN(crypten.nn.Module):
             if self.serv == 2:
                 x = self.layer2(x)
                 x = self.layer3(x)
+                x = self.layer4(x)
             self.serv = 2
         else:
             x = self.layer2(x)
             x = self.layer3(x)
+            x = self.layer4(x)
         return x
 
 
@@ -126,9 +137,10 @@ server_model.zero_grad()
 loss.backward()
 print(
     f'\n Loss function results on the server side after second layer: {loss.get_plain_text()}')
-server_model.update_parameters(learning_rate)
+# server_model.update_parameters(learning_rate)
+optimizer.step()
 
-EPOCHS = 10
+EPOCHS = 5
 print(f'\n Continuing training for {EPOCHS} epochs on server side...')
 losses = []
 start_time = time.time()
@@ -136,8 +148,8 @@ for epoch in range(EPOCHS):
     pred_y = server_model(X_train_enc)
     loss = loss_function(pred_y, y_train_enc)
     losses.append(loss.get_plain_text().item())
-    optimizer.zero_grad()
-    # server_model.zero_grad()
+    # optimizer.zero_grad()
+    server_model.zero_grad()
     loss.backward()
 
     if epoch % 100 == 99:
@@ -197,7 +209,7 @@ output = model(X_test_enc)
 with torch.no_grad():
     _, predictions = output.max(0)
     prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
-    for i in range(30): 
+    for i in range(360): 
         print(f'Expected: {label_names[y_test_tensor[i].item()]} vs. real: {label_names[prediction_tensor[i].item()]}')
     correct = (prediction_tensor == y_test_tensor).sum()
     samples = predictions.size(0)
