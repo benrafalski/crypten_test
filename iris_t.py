@@ -136,8 +136,8 @@ for epoch in range(EPOCHS):
     pred_y = server_model(X_train_enc)
     loss = loss_function(pred_y, y_train_enc)
     losses.append(loss.get_plain_text().item())
-    optimizer.zero_grad()
-    # server_model.zero_grad()
+    # optimizer.zero_grad()
+    server_model.zero_grad()
     loss.backward()
 
     if epoch % 100 == 99:
@@ -146,10 +146,10 @@ for epoch in range(EPOCHS):
     # server_model.update_parameters(learning_rate)
     optimizer.step()
 
-    with torch.no_grad():
-        y_pred = model(X_test_enc)
-        correct = (torch.argmax(y_pred.get_plain_text(), dim=1) == y_test_tensor).type(torch.FloatTensor)
-        print(correct.mean())
+    # with torch.no_grad():
+    #     y_pred = model(X_test_enc)
+    #     correct = (torch.argmax(y_pred.get_plain_text(), dim=1) == y_test_tensor).type(torch.FloatTensor)
+    #     print(correct.mean())
 
 print(f"\n Training time: {time.time()-start_time} seconds")
 
@@ -193,7 +193,7 @@ print(f"\n Training time: {time.time()-start_time} seconds")
 test_loss = 0
 correct = 0
 
-output = model(X_test_enc)
+output = server_model(X_test_enc)
 with torch.no_grad():
     _, predictions = output.max(0)
     prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
