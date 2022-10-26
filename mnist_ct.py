@@ -88,8 +88,6 @@ def train(net):
         if i%100 == 99:
             print(f'epoch={1}, batch={i}')
         i+=1
-        if i == 300:
-            break
 
 
 train(net)
@@ -100,27 +98,22 @@ total = 0
 net.eval()
 
 
-output = server_model(X_test_enc)
-with torch.no_grad():
-    _, predictions = output.max(0)
-    prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
-    for i in range(30): 
-        print(f'Expected: {label_names[y_test_tensor[i].item()]} vs. real: {label_names[prediction_tensor[i].item()]}')
-    correct = (prediction_tensor == y_test_tensor).sum()
-    samples = predictions.size(0)
-    print(f'accuracy: {correct}/{samples} {float(correct)/float(samples) * 100:.2f}%')
+# output = server_model(X_test_enc)
+# with torch.no_grad():
+#     _, predictions = output.max(0)
+#     prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
+#     for i in range(30): 
+#         print(f'Expected: {label_names[y_test_tensor[i].item()]} vs. real: {label_names[prediction_tensor[i].item()]}')
+#     correct = (prediction_tensor == y_test_tensor).sum()
+#     samples = predictions.size(0)
+#     print(f'accuracy: {correct}/{samples} {float(correct)/float(samples) * 100:.2f}%')
 
 with torch.no_grad():
+    net.decrypt()
     for data in testset:
         X, y = data
-        
-
-        x_enc = crypten.cryptensor(X.view(-1,784))
-
-        output = net(x_enc)
-        print(output.decrypt())
-
-        for idx, i in enumerate(output.decrypt()):
+        output = net(X.view(-1,784))
+        for idx, i in enumerate(output):
             if torch.argmax(i) == y[idx]:
                 correct += 1
             total += 1
