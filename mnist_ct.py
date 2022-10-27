@@ -53,66 +53,87 @@ class Net(crypten.nn.Module):
             crypten.nn.Linear(64, 10),
             crypten.nn.LogSoftmax(dim=1)
         )
+        self.serv = False
 
     def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)   
-        return self.layer4(x)
+
+        # x = self.layer1(x)
+        # x = self.layer2(x)
+        # x = self.layer3(x)   
+        # return self.layer4(x)
+
+        if self.serv == False:
+            x = self.layer1(x)
+            x = self.layer2(x)
+            self.serv = True
+            # print(f'x = {x}')
+        else:
+            x = self.layer3(x)   
+            x = self.layer4(x) 
+            self.serv = False   
+        return x
 
 
 
-net = Net()
-# net.share_memory()
-net.encrypt()
-print(net)
+# net = Net()
+# net.encrypt()
+# # print(net)
+# net.train()
 
+client_net = Net()
+client_net.encrypt()
+client_net.train()
 
 loss_criterion = crypten.nn.CrossEntropyLoss()
-optimizer = crypten.optim.SGD(net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
+optimizer = crypten.optim.SGD(client_net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
-def train(net):
+def train(client_net):
     i=0
     for data in trainset:  
+        # encrypt the data
         X, y = data  
         x_enc = crypten.cryptensor(X.view(-1,784))
         y_one_hot = torch.nn.functional.one_hot(y)
         y_enc = crypten.cryptensor(y_one_hot)
-        output = net(x_enc)  
+
+        # train first 2 layers using client
+        client_output = client_net(x_enc)
+        # transfer network to server 
+        net = client_net
+        # finish last 2 layers in server side 
+        output = net(client_output)  
+        # send network back to client side to update parameters and repeat
+        client_net = net
+
         if(output.size() != y_enc._tensor.size()):
             continue
         loss = loss_criterion(output, y_enc)  
         net.zero_grad()
         loss.backward()  
         optimizer.step()
+        
         if i%100 == 99:
             print(f'epoch={1}, batch={i}')
         i+=1
+        # # stop after 1200*10 samples
+        # if i == 1200:
+        #     break
 
 
-train(net)
+train(client_net)
 
+
+# testing model accuracy
 correct = 0
 total = 0
-
-net.eval()
-
-
-# output = server_model(X_test_enc)
-# with torch.no_grad():
-#     _, predictions = output.max(0)
-#     prediction_tensor = torch.argmax(predictions.get_plain_text(), dim=1)
-#     for i in range(30): 
-#         print(f'Expected: {label_names[y_test_tensor[i].item()]} vs. real: {label_names[prediction_tensor[i].item()]}')
-#     correct = (prediction_tensor == y_test_tensor).sum()
-#     samples = predictions.size(0)
-#     print(f'accuracy: {correct}/{samples} {float(correct)/float(samples) * 100:.2f}%')
+client_net.eval()
 
 with torch.no_grad():
-    net.decrypt()
+    client_net.decrypt()
     for data in testset:
         X, y = data
-        output = net(X.view(-1,784))
+        client_output = client_net(X.view(-1,784))
+        output = client_net(client_output)
         for idx, i in enumerate(output):
             if torch.argmax(i) == y[idx]:
                 correct += 1
