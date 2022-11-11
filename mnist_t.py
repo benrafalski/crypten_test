@@ -1,3 +1,4 @@
+import time
 import torch
 import torchvision
 from torchvision import transforms, datasets
@@ -52,6 +53,7 @@ loss_criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
 
+start = time.time()
 for epoch in range(1): 
     i=0
     for data in trainset:  
@@ -65,8 +67,7 @@ for epoch in range(1):
             print(f'epoch={epoch}, batch={i}')
         i+=1 
 
-    
-    print(loss)
+print(f'Runtime : {time.time()-start}')
 
 
 correct = 0

@@ -22,33 +22,19 @@ train = datasets.MNIST('', train=True, download=True,
                        ]))
 
 test = datasets.MNIST('', train=False, download=True,
-                      transform=transforms.Compose([
-                          transforms.ToTensor()
-                      ]))
+                       transform=transforms.Compose([
+                           transforms.ToTensor()
+                       ]))
+
+trainset = torch.utils.data.DataLoader(train, batch_size=10, shuffle=True, num_workers=2)
+
+testset = torch.utils.data.DataLoader(test, batch_size=10, shuffle=False, num_workers=2)
 
 
-evens = list(range(0, len(train), 2))
-odds = list(range(1, len(train), 2))
-trainset_1 = torch.utils.data.Subset(train, evens)
-trainset_2 = torch.utils.data.Subset(train, odds)
-print(f'sub1:{trainset_1}')
-print(f'sub2={trainset_2}')
+trainset_shape = trainset.dataset.train_data.shape
+testset_shape = testset.dataset.test_data.shape
 
-
-trainset1 = torch.utils.data.DataLoader(
-    trainset_1, batch_size=10, shuffle=True, num_workers=2)
-
-trainset2 = torch.utils.data.DataLoader(
-    trainset_2, batch_size=10, shuffle=True, num_workers=2)
-
-testset = torch.utils.data.DataLoader(
-    test, batch_size=10, shuffle=False, num_workers=2)
-
-
-# trainset_shape = trainset1.dataset.trainset_1.shape
-# testset_shape = testset.dataset.test_data.shape
-
-# print(trainset_shape, testset_shape)
+print(trainset_shape, testset_shape)
 
 
 class Net(crypten.nn.Module):
@@ -99,19 +85,12 @@ optimizer = crypten.optim.SGD(
 
 def train(client_net):
     i = 0
-    for data1, data2 in zip(trainset1, trainset2):
+    for data in trainset:
         # encrypt the data
-        X1, y1 = data1
+        X1, y1 = data
         x1_enc = crypten.cryptensor(X1.view(-1, 784))
         y1_one_hot = torch.nn.functional.one_hot(y1)
         y1_enc = crypten.cryptensor(y1_one_hot)
-
-
-        X2, y2 = data2
-        x2_enc = crypten.cryptensor(X2.view(-1, 784))
-        y2_one_hot = torch.nn.functional.one_hot(y2)
-        y2_enc = crypten.cryptensor(y2_one_hot)
-
 
         
 
