@@ -140,3 +140,12 @@ with torch.no_grad():
             total += 1
 
 print("Accuracy: ", round(correct/total, 2))
+
+PATH = "models/mnist_ct.pth"
+
+state = {
+    'epoch': 1,
+    'state_dict': client_net.state_dict(),
+    'optimizer': optimizer.state_dict(),
+}
+torch.save(state, PATH)

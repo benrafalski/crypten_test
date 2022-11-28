@@ -121,3 +121,13 @@ with torch.no_grad():
             total += 1
 
 print("Accuracy: ", round(correct/total, 2))
+
+
+PATH = "models/aggregate_pt.pth"
+
+state = {
+    'epoch': 1,
+    'state_dict': model.state_dict(),
+    'optimizer': optimizer.state_dict(),
+}
+torch.save(state, PATH)

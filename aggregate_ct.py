@@ -60,9 +60,9 @@ class Client(crypten.nn.Module):
         return x
 
 
-class GlobalModel(crypten.nn.Module):
+class Global(crypten.nn.Module):
     def __init__(self, modelA, modelB):
-        super(GlobalModel, self).__init__()
+        super(Global, self).__init__()
         self.modelA = modelA
         self.modelB = modelB
         self.layer3 = crypten.nn.Sequential(
@@ -93,7 +93,7 @@ modelA.encrypt()
 modelB.encrypt()
 
 
-model = GlobalModel(modelA, modelB)
+model = Global(modelA, modelB)
 model.encrypt()
 
 loss_criterion = crypten.nn.CrossEntropyLoss()
@@ -147,19 +147,16 @@ with torch.no_grad():
             total += 1
 
 print("Accuracy: ", round(correct/total, 2))
-# correct = 0
-# total = 0
-# for dataA, dataB in zip(testA, testB):
-#     XA, yA = enc_data(dataA)
-#     XB, yB = enc_data(dataB)
-#     output = model(XA.view(-1,784), XB.view(-1,784))
-#     for idx, i in enumerate(output.get_plain_text()):
-        
-#         print(output.get_plain_text().argmax(1))
-#         print(yA.get_plain_text()[idx])
-#         if torch.argmax(i) == yA.get_plain_text()[idx]:
-#             correct += 1
-#         total += 1
 
+
+
+PATH = "models/aggregate_ct.pth"
+
+state = {
+    'epoch': 1,
+    'state_dict': model.state_dict(),
+    'optimizer': optimizer.state_dict(),
+}
+torch.save(state, PATH)
 
 

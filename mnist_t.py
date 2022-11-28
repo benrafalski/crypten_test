@@ -84,6 +84,15 @@ with torch.no_grad():
 
 print("Accuracy: ", round(correct/total, 2))
 
+PATH = "models/mnist_t.pth"
+
+state = {
+    'epoch': 1,
+    'state_dict': net.state_dict(),
+    'optimizer': optimizer.state_dict(),
+}
+torch.save(state, PATH)
+
 
 
 
