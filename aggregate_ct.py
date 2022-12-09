@@ -31,9 +31,17 @@ def make_dataset(size):
 
     return train_loader, test_loader
 
-trainA, testA = make_dataset(3000)
-trainB, testB = make_dataset(3000)
+train = []
+test = []
 
+for i in range(8):
+    a, b = make_dataset(750)
+    train.append(a)
+    test.append(b)
+
+
+# print(train)
+# print(test)
 
 
 
@@ -46,11 +54,11 @@ class Client(crypten.nn.Module):
         super(Client, self).__init__()
 
         self.layer1 = crypten.nn.Sequential(
-            crypten.nn.Linear(28*28, 32),
+            crypten.nn.Linear(28*28, 8),
             crypten.nn.ReLU()
         )
         self.layer2 = crypten.nn.Sequential(
-            crypten.nn.Linear(32, 32),
+            crypten.nn.Linear(8, 8),
             crypten.nn.ReLU()
         )
 
@@ -61,11 +69,17 @@ class Client(crypten.nn.Module):
 
 
 class Global(crypten.nn.Module):
-    def __init__(self, modelA, modelB):
+    def __init__(self, clients):
         super(Global, self).__init__()
-        self.modelA = modelA
-        self.modelB = modelB
-        self.layer3 = crypten.nn.Sequential(
+        self.model1 = clients[0]
+        self.model2 = clients[1]
+        self.model3 = clients[2]
+        self.model4 = clients[3]
+        self.model5 = clients[4]
+        self.model6 = clients[5]
+        self.model7 = clients[6]
+        self.model8 = clients[7]
+        self.layer9 = crypten.nn.Sequential(
             crypten.nn.Linear(64, 64),
             crypten.nn.ReLU()
         )
@@ -74,26 +88,34 @@ class Global(crypten.nn.Module):
             crypten.nn.LogSoftmax(dim=1)
         )
 
-    def forward(self, x1, x2):
-        x1 = self.modelA(x1)
-        x2 = self.modelB(x2)
+    def forward(self, clients):
+        x1 = self.model1(clients[0])
+        x2 = self.model2(clients[1])
+        x3 = self.model3(clients[2])
+        x4 = self.model4(clients[3])
+        x5 = self.model5(clients[4])
+        x6 = self.model6(clients[5])
+        x7 = self.model7(clients[6])
+        x8 = self.model8(clients[7])
+        
+
         if(self.encrypted):
-            x = crypten.cat([x1, x2], dim=1)
+            x = crypten.cat([x1, x2, x3, x4, x5, x6, x7, x8], dim=1)
         else:
-            x = torch.cat((x1, x2), dim=1)
+            x = torch.cat((x1, x2, x3, x4, x5, x6, x7, x8), dim=1)
         x = self.layer3(x)
         x = self.layer4(x)
         return x
 
 
-modelA = Client()
-modelB = Client()
+clients = []
+for i in range(10):
+    model = Client()
+    model.encrypt()
+    clients.append(model)
 
-modelA.encrypt()
-modelB.encrypt()
 
-
-model = Global(modelA, modelB)
+model = Global(clients)
 model.encrypt()
 
 loss_criterion = crypten.nn.CrossEntropyLoss()
@@ -106,6 +128,10 @@ def enc_data(data):
     y_one_hot = torch.nn.functional.one_hot(y)
     y_enc = crypten.cryptensor(y_one_hot)
     return x_enc, y_enc
+
+
+
+
 
 
 start = time.time()
