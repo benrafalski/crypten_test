@@ -143,30 +143,21 @@ optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=1
 #         i+=1 
 
 
+            
+
+
+
+
 start = time.time()
 for epoch in range(1): 
     batch=0
-    for data0, data1, data2, data3, data4, data5, data6, data7 in zip(train[0], train[1], train[2], train[3], train[4], train[5], train[6], train[7]):  
-        data = []
-        data.append(data0)
-        data.append(data1)
-        data.append(data2)
-        data.append(data3)
-        data.append(data4)
-        data.append(data5)
-        data.append(data6)
-        data.append(data7)
-
+    for data in zip(*train): 
         X = []
-        y = []    
-        for i in range(8):
-            a, b = data[i]
-            # print(a.shape)
+        y = []
+        for d in data:
+            a, b = d
             X.append(a.view(-1, 784))
             y.append(b)
-
-        # print(X)
-
         output = model(X)  
         loss = loss_criterion(output, y[0])  
         model.zero_grad() 
@@ -184,26 +175,13 @@ correct = 0
 total = 0
 
 with torch.no_grad():
-    for data0, data1, data2, data3, data4, data5, data6, data7 in zip(test[0], test[1], test[2], test[3], test[4], test[5], test[6], test[7]):  
-        data = []
-        data.append(data0)
-        data.append(data1)
-        data.append(data2)
-        data.append(data3)
-        data.append(data4)
-        data.append(data5)
-        data.append(data6)
-        data.append(data7)
-
+    for data in zip(*test):  
         X = []
-        y = []    
-        for i in range(8):
-            a, b = data[i]
-            # print(a.shape)
+        y = []
+        for d in data:
+            a, b = d
             X.append(a.view(-1, 784))
             y.append(b)
-
-        
         output = model(X) 
         for idx, i in enumerate(output):
             for why in y:
