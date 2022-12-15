@@ -15,6 +15,8 @@ from torch.utils.data import Subset, DataLoader
 CLIENTS = 2
 HIDDENLAYER = 500
 
+print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}')
+
 crypten.init()
 
 dataset = datasets.MNIST('', train=True, download=True,
@@ -29,8 +31,8 @@ def make_dataset(size):
     train_dataset = Subset(dataset, train_indices)
     test_dataset = Subset(dataset, test_indices)
 
-    train_loader = DataLoader(train_dataset, shuffle=True, num_workers=2, batch_size=10)
-    test_loader = DataLoader(test_dataset, shuffle=False, num_workers=2, batch_size=10)
+    train_loader = DataLoader(train_dataset, shuffle=True, num_workers=0, batch_size=10)
+    test_loader = DataLoader(test_dataset, shuffle=False, num_workers=0, batch_size=10)
 
     return train_loader, test_loader
 
@@ -41,16 +43,6 @@ for i in range(CLIENTS):
     a, b = make_dataset(6000//CLIENTS)
     train.append(a)
     test.append(b)
-
-
-# print(train)
-# print(test)
-
-
-
-
-
-
 
 class Client(crypten.nn.Module):
     def __init__(self):
@@ -110,18 +102,12 @@ model.encrypt()
 loss_criterion = crypten.nn.CrossEntropyLoss()
 optimizer = crypten.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
-
 def enc_data(data):
     X, y = data
     x_enc = crypten.cryptensor(X.view(-1, 784))
     y_one_hot = torch.nn.functional.one_hot(y)
     y_enc = crypten.cryptensor(y_one_hot)
     return x_enc, y_enc
-
-
-
-
-
 
 start = time.time()
 for epoch in range(1): 
@@ -156,8 +142,8 @@ model.eval()
 
 with torch.no_grad():
 
-    for i in range(CLIENTS):
-        clients.decrypt()
+    for _i in range(CLIENTS):
+        clients[_i].decrypt()
     model.decrypt()
     for data in zip(*test):
         X = []
@@ -176,8 +162,6 @@ with torch.no_grad():
 
 print("Accuracy: ", round(correct/total, 2))
 
-
-
 PATH = "models/aggregate_ct.pth"
 
 state = {
@@ -187,4 +171,11 @@ state = {
 }
 torch.save(state, PATH)
 
+
+# Clients   Runtime   Accuracy
+# 2         /         99
+# 10        /         74
+# 100       /         69
+# 500       /         11
+# 1000      /         ?          
 
