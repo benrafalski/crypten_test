@@ -12,6 +12,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
+CLIENTS = 2
+HIDDENLAYER = 500
+
 crypten.init()
 
 dataset = datasets.MNIST('', train=True, download=True,
@@ -34,8 +37,8 @@ def make_dataset(size):
 train = []
 test = []
 
-for i in range(8):
-    a, b = make_dataset(750)
+for i in range(CLIENTS):
+    a, b = make_dataset(6000//CLIENTS)
     train.append(a)
     test.append(b)
 
@@ -54,11 +57,11 @@ class Client(crypten.nn.Module):
         super(Client, self).__init__()
 
         self.layer1 = crypten.nn.Sequential(
-            crypten.nn.Linear(28*28, 8),
+            crypten.nn.Linear(28*28, HIDDENLAYER),
             crypten.nn.ReLU()
         )
         self.layer2 = crypten.nn.Sequential(
-            crypten.nn.Linear(8, 8),
+            crypten.nn.Linear(HIDDENLAYER, HIDDENLAYER),
             crypten.nn.ReLU()
         )
 
@@ -69,18 +72,11 @@ class Client(crypten.nn.Module):
 
 
 class Global(crypten.nn.Module):
-    def __init__(self, clients):
+    def __init__(self, models):
         super(Global, self).__init__()
-        self.model1 = clients[0]
-        self.model2 = clients[1]
-        self.model3 = clients[2]
-        self.model4 = clients[3]
-        self.model5 = clients[4]
-        self.model6 = clients[5]
-        self.model7 = clients[6]
-        self.model8 = clients[7]
-        self.layer9 = crypten.nn.Sequential(
-            crypten.nn.Linear(64, 64),
+        self.models = models
+        self.layer3 = crypten.nn.Sequential(
+            crypten.nn.Linear(1000, 64),
             crypten.nn.ReLU()
         )
         self.layer4 = crypten.nn.Sequential(
@@ -88,28 +84,21 @@ class Global(crypten.nn.Module):
             crypten.nn.LogSoftmax(dim=1)
         )
 
-    def forward(self, clients):
-        x1 = self.model1(clients[0])
-        x2 = self.model2(clients[1])
-        x3 = self.model3(clients[2])
-        x4 = self.model4(clients[3])
-        x5 = self.model5(clients[4])
-        x6 = self.model6(clients[5])
-        x7 = self.model7(clients[6])
-        x8 = self.model8(clients[7])
-        
+    def forward(self, c):        
+        for i in range(len(c)):
+            c[i] = self.models[i](c[i])
 
         if(self.encrypted):
-            x = crypten.cat([x1, x2, x3, x4, x5, x6, x7, x8], dim=1)
+            x = crypten.cat(c, dim=1)
         else:
-            x = torch.cat((x1, x2, x3, x4, x5, x6, x7, x8), dim=1)
+            x = torch.cat(c, dim=1)
         x = self.layer3(x)
         x = self.layer4(x)
         return x
 
 
 clients = []
-for i in range(10):
+for i in range(CLIENTS):
     model = Client()
     model.encrypt()
     clients.append(model)
@@ -137,13 +126,19 @@ def enc_data(data):
 start = time.time()
 for epoch in range(1): 
     i=0
-    for dataA, dataB in zip(trainA, trainB):  
-        XA, yA = enc_data(dataA)
-        XB, yB = enc_data(dataB)
-        output = model(XA.view(-1,784), XB.view(-1,784))  
-        if(output.size() != yA._tensor.size()):
+    for data in zip(*train): 
+
+        X = []
+        y = []
+        for d in data:
+            a, b = enc_data(d)
+            X.append(a.view(-1, 784))
+            y.append(b)
+
+        output = model(X)  
+        if(output.size() != y[0]._tensor.size()):
             continue
-        loss = loss_criterion(output, yA)  
+        loss = loss_criterion(output, y[0])  
         model.zero_grad() 
         loss.backward()  
         optimizer.step()
@@ -160,15 +155,22 @@ total = 0
 model.eval()
 
 with torch.no_grad():
-    modelA.decrypt()
-    modelB.decrypt()
+
+    for i in range(CLIENTS):
+        clients.decrypt()
     model.decrypt()
-    for dataA, dataB in zip(testA, testB):
-        XA, yA = dataA
-        XB, yB = dataB
-        output = model(XA.view(-1,784), XB.view(-1,784)) 
+    for data in zip(*test):
+        X = []
+        y = []
+        for d in data:
+            a, b = enc_data(d)
+            X.append(a.view(-1, 784))
+            y.append(b) 
+        output = model(X)  
+        if(output.size() != y[0]._tensor.size()):
+            continue
         for idx, i in enumerate(output):
-            if torch.argmax(i) == yA[idx]:
+            if torch.argmax(i) == y[0][idx]:
                 correct += 1
             total += 1
 
