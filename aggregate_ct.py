@@ -12,8 +12,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-CLIENTS = 1000
-HIDDENLAYER = 1
+CLIENTS = 500
+HIDDENLAYER = 2
 EPOCHS = 5
 
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}')
@@ -175,6 +175,6 @@ torch.save(state, PATH)
 # 2         1729.15   0.64      1
 # 10        7210.47   0.70      20
 # 100       578.86    0.10      5
-# 500       1941.17   0.10      5
-# 1000      /         ?          
+# 500       520.25    0.10      5
+# 1000      520.40    0.10      5          
 

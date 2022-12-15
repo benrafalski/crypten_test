@@ -12,7 +12,7 @@ import torchvision
 import torch
 import itertools
 
-
+CLIENTS = 2
 
 crypten.init()
 
@@ -59,14 +59,17 @@ class Net(crypten.nn.Module):
         self.serv = False
 
     def forward(self, x):
-        if self.serv == False:
+        if x.shape == torch.Size([10, 784]):
             x = self.layer1(x)
             x = self.layer2(x)
             self.serv = True
         else:
+            
             x = self.layer3(x)
             x = self.layer4(x)
-            self.serv = False
+
+
+        self.serv = not self.serv
         return x
 
 
@@ -74,16 +77,22 @@ class Net(crypten.nn.Module):
 # net.encrypt()
 # # print(net)
 # net.train()
-client_net = Net()
-client_net.encrypt()
-client_net.train()
+
+client_net = []
+for i in range(CLIENTS):
+    model = Net()
+    model.encrypt()
+    model.train()
+    client_net.append(model)
+
+
 
 loss_criterion = crypten.nn.CrossEntropyLoss()
 optimizer = crypten.optim.SGD(
-    client_net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
+    client_net[0].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
 
-def train(client_net):
+def train():
     i = 0
     for data in trainset:
         # encrypt the data
@@ -92,16 +101,20 @@ def train(client_net):
         y1_one_hot = torch.nn.functional.one_hot(y1)
         y1_enc = crypten.cryptensor(y1_one_hot)
 
-        
-
         # train first 2 layers using client
-        client_output = client_net(x1_enc)
+        
+        client_output = []
+        for h in range(CLIENTS):
+            # print(f'here {h}')
+            c = client_net[h](x1_enc)
+            # print(f'after c {h}')
+            client_output.append(c)
         # transfer network to server
-        net = client_net
+        net = client_net[0]
         # finish last 2 layers in server side
-        output = net(client_output)
+        output = net(client_output[0])
         # send network back to client side to update parameters and repeat
-        client_net = net
+        client_net[0] = net
 
         if(output.size() != y1_enc._tensor.size()):
             continue
@@ -119,21 +132,22 @@ def train(client_net):
 
 
 start = time.time()
-train(client_net)
+
+train()
 print(f"Runtime: {time.time() - start}")
 
 
 # testing model accuracy
 correct = 0
 total = 0
-client_net.eval()
+client_net[0].eval()
 
 with torch.no_grad():
-    client_net.decrypt()
+    client_net[0].decrypt()
     for data in testset:
         X, y = data
-        client_output = client_net(X.view(-1, 784))
-        output = client_net(client_output)
+        client_output = client_net[0](X.view(-1, 784))
+        output = client_net[0](client_output)
         for idx, i in enumerate(output):
             if torch.argmax(i) == y[idx]:
                 correct += 1
@@ -145,7 +159,7 @@ PATH = "models/mnist_ct.pth"
 
 state = {
     'epoch': 1,
-    'state_dict': client_net.state_dict(),
+    'state_dict': client_net[0].state_dict(),
     'optimizer': optimizer.state_dict(),
 }
 torch.save(state, PATH)
