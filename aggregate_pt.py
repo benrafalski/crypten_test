@@ -10,8 +10,9 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
 CLIENTS = 500
-print(f'CLIENTS {CLIENTS}')
 HIDDEN = 2
+EPOCHS = 5
+print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -85,8 +86,8 @@ loss_criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
 start = time.time()
-for epoch in range(20):
-    print(f'EPOCH {epoch}') 
+for epoch in range(EPOCHS):
+    print(f'\nEPOCH {epoch+1}') 
     batch=0
     for data in zip(*train): 
         X = []
@@ -100,9 +101,10 @@ for epoch in range(20):
         model.zero_grad() 
         loss.backward()  
         optimizer.step() 
-        if batch%100 == 99:
-            print(f'\tepoch={epoch}, batch={batch}')
+        if batch%10 == 9:
+            print(f'+', end="")
         batch+=1 
+        # break
 
     
 print(f'Runtime : {time.time()-start}')

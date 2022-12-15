@@ -12,10 +12,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-CLIENTS = 2
-HIDDENLAYER = 500
+CLIENTS = 1000
+HIDDENLAYER = 1
+EPOCHS = 5
 
-print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}')
+print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}')
 
 crypten.init()
 
@@ -110,7 +111,7 @@ def enc_data(data):
     return x_enc, y_enc
 
 start = time.time()
-for epoch in range(1): 
+for epoch in range(EPOCHS): 
     i=0
     for data in zip(*train): 
 
@@ -130,7 +131,7 @@ for epoch in range(1):
         optimizer.step()
         if i%100 == 99:
             print(f'epoch={epoch}, batch={i}')
-        i+=1 
+        i+=1
 
     
 print(f'Runtime : {time.time()-start}')
@@ -149,12 +150,10 @@ with torch.no_grad():
         X = []
         y = []
         for d in data:
-            a, b = enc_data(d)
+            a, b = d
             X.append(a.view(-1, 784))
             y.append(b) 
         output = model(X)  
-        if(output.size() != y[0]._tensor.size()):
-            continue
         for idx, i in enumerate(output):
             if torch.argmax(i) == y[0][idx]:
                 correct += 1
@@ -172,10 +171,10 @@ state = {
 torch.save(state, PATH)
 
 
-# Clients   Runtime   Accuracy
-# 2         /         99
-# 10        /         74
-# 100       /         69
-# 500       /         11
+# Clients   Runtime   Accuracy  Epochs
+# 2         1729.15   0.64      1
+# 10        7210.47   0.70      20
+# 100       578.86    0.10      5
+# 500       1941.17   0.10      5
 # 1000      /         ?          
 
