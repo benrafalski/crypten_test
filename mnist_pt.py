@@ -8,8 +8,11 @@ import torch.optim as optim
 import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
+from multiprocessing import Pool
+from itertools import repeat
+from concurrent.futures import ProcessPoolExecutor
 
-CLIENTS = 2
+CLIENTS = 16
 HIDDEN = 2
 EPOCHS = 1
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
@@ -44,25 +47,7 @@ class Net(nn.Module):
         self.fc4 = nn.Linear(64, 10)
         self.serv = False
 
-    def forward1(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return x
-
-    def forward2(self, x):
-        x = F.relu(self.fc3(x))
-        x = F.log_softmax(self.fc4(x), dim=1)
-        return x
-
-
     def forward(self, x):
-        # x = F.relu(self.fc1(x))
-        # x = F.relu(self.fc2(x))
-        # x = F.relu(self.fc3(x))
-        # x = self.fc4(x)
-        # return F.log_softmax(self.fc4(x), dim=1)  
-        # print(self.serv)
-
         if x.shape == torch.Size([10, 784]):
             x = F.relu(self.fc1(x))
             x = F.relu(self.fc2(x))
@@ -85,15 +70,41 @@ GlobalNet = Net()
 loss_criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(models[0].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
+def train_client(args):
+    X, m = args
+    mod = models[m](X.view(-1,784))
+    return mod
 
 start = time.time()
+client_train = 0
+total_client_time = 0
+
+server_time = 0
+total_server_time = 0
+
 for epoch in range(EPOCHS): 
     i=0
     for data in trainset:  
         X, y = data
         client_outs = []
+        index = list(range(len(models)))
+        args = zip(repeat(X), index)
+
         for m in range(len(models)):
-            client_outs.append(models[m](X.view(-1,784)))
+            if m == 0: 
+                cstart = time.time()
+                mod = train_client((X, m))
+                client_train = time.time() - cstart
+            else:
+                mod = train_client((X, m))
+            client_outs.append(mod)
+
+        total_client_time = total_client_time + client_train
+
+# start training -> first client finishes - client ends -> end training
+
+        server_time = time.time()
+
         # transfer network to server
         GlobalNet = models[0]
         # finish last 2 layers in server side
@@ -110,8 +121,10 @@ for epoch in range(EPOCHS):
         if i%100 == 99:
             print(f'epoch={epoch}, batch={i}')
         i+=1 
+        total_server_time = total_server_time + (time.time()- server_time)
 
-print(f'Runtime : {time.time()-start}')
+print(f'client time = {total_client_time}, server time = {total_server_time}')
+print(f'Runtime : {total_server_time+total_client_time}')
 
 correct = 0
 total = 0

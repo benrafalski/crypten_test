@@ -10,8 +10,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
 CLIENTS = 500
-HIDDEN = 2
-EPOCHS = 5
+HIDDEN = 1000//CLIENTS
+EPOCHS = 1
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -21,9 +21,13 @@ dataset = datasets.MNIST('', train=True, download=True,
                            transforms.ToTensor()
                        ]))
 
+
 def make_dataset(size):
     indices = np.arange(len(dataset))
-    train_indices, test_indices = train_test_split(indices, train_size=size*10, stratify=dataset.targets)
+    train_indices, test_indices = train_test_split(indices, train_size=size*10, test_size=10000, stratify=dataset.targets)
+
+    print(len(train_indices))
+    print(len(test_indices))
 
     train_dataset = Subset(dataset, train_indices)
     test_dataset = Subset(dataset, test_indices)
@@ -39,6 +43,8 @@ def make_dataset(size):
 train = []
 test = []
 
+
+# a, b = make_dataset(6000//CLIENTS)
 
 
 for i in range(CLIENTS):
@@ -107,10 +113,11 @@ for epoch in range(EPOCHS):
         # break
 
     
-print(f'Runtime : {time.time()-start}')
+print(f'\nRuntime : {time.time()-start}')
 
 correct = 0
 total = 0
+model.eval()
 
 with torch.no_grad():
     for data in zip(*test):  
@@ -123,8 +130,9 @@ with torch.no_grad():
         output = model(X) 
         for idx, i in enumerate(output):
             if torch.argmax(i) == y[0][idx]:
-                    correct += 1
+                correct += 1
             total += 1
+        # print(time.time() - s)
 
 print("Accuracy: ", round(correct/total, 2))
 

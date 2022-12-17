@@ -12,7 +12,8 @@ import torchvision
 import torch
 import itertools
 
-CLIENTS = 2
+CLIENTS = 100
+print(f'CLIENTS {CLIENTS}')
 
 crypten.init()
 
@@ -92,7 +93,12 @@ optimizer = crypten.optim.SGD(
     client_net[0].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
 
 
+
 def train():
+    client_time = 0
+    total_client_time = 0
+    server_time = 0
+    total_server_time = 0
     i = 0
     for data in trainset:
         # encrypt the data
@@ -105,16 +111,30 @@ def train():
         
         client_output = []
         for h in range(CLIENTS):
+
+            if h == 0:
+                cstart = time.time()
+                c = client_net[h](x1_enc)
+                client_time = time.time() - cstart
+            else:
+                c = client_net[h](x1_enc)
+
             # print(f'here {h}')
-            c = client_net[h](x1_enc)
+            
             # print(f'after c {h}')
             client_output.append(c)
+
+
+        total_client_time = total_client_time + client_time
+
+        server_time = time.time()
         # transfer network to server
         net = client_net[0]
         # finish last 2 layers in server side
         output = net(client_output[0])
         # send network back to client side to update parameters and repeat
         client_net[0] = net
+
 
         if(output.size() != y1_enc._tensor.size()):
             continue
@@ -129,12 +149,16 @@ def train():
         # # stop after 1200*10 samples
         # if i == 1200:
         #     break
+        total_server_time = total_server_time + (time.time()- server_time)
+
+    return (total_server_time+total_client_time)
 
 
 start = time.time()
 
-train()
+t = train()
 print(f"Runtime: {time.time() - start}")
+print(f'Runtime : {t}')
 
 
 # testing model accuracy
@@ -163,3 +187,9 @@ state = {
     'optimizer': optimizer.state_dict(),
 }
 torch.save(state, PATH)
+# Clients   Runtime   Accuracy  Epochs
+# 2         ?         0.??      1
+# 10        1769.31   0.93      1
+# 100       9293.01   0.92      1
+# 500       520.25    0.10      1
+# 1000      520.40    0.10      1 

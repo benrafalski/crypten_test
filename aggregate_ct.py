@@ -12,8 +12,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-CLIENTS = 500
-HIDDENLAYER = 2
+CLIENTS = 10
+HIDDENLAYER = 1000//CLIENTS
 EPOCHS = 5
 
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}')
@@ -39,6 +39,8 @@ def make_dataset(size):
 
 train = []
 test = []
+
+
 
 for i in range(CLIENTS):
     a, b = make_dataset(6000//CLIENTS)
@@ -170,11 +172,11 @@ state = {
 }
 torch.save(state, PATH)
 
-
+# 2 = 546.077
 # Clients   Runtime   Accuracy  Epochs
-# 2         1729.15   0.64      1
 # 10        7210.47   0.70      20
 # 100       578.86    0.10      5
 # 500       520.25    0.10      5
 # 1000      520.40    0.10      5          
 
+# 0.0036624871584044
