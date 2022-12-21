@@ -9,9 +9,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-CLIENTS = 500
+CLIENTS = 10
 HIDDEN = 1000//CLIENTS
-EPOCHS = 1
+EPOCHS = 40
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -26,8 +26,8 @@ def make_dataset(size):
     indices = np.arange(len(dataset))
     train_indices, test_indices = train_test_split(indices, train_size=size*10, test_size=10000, stratify=dataset.targets)
 
-    print(len(train_indices))
-    print(len(test_indices))
+    # print(len(train_indices))
+    # print(len(test_indices))
 
     train_dataset = Subset(dataset, train_indices)
     test_dataset = Subset(dataset, test_indices)
@@ -144,3 +144,85 @@ state = {
     'optimizer': optimizer.state_dict(),
 }
 torch.save(state, PATH)
+
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 1
+# Runtime : 4.476203680038452
+# Accuracy:  0.15
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 2
+# Runtime : 8.450185775756836
+# Accuracy:  0.28
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 3
+# Runtime : 12.775931358337402
+# Accuracy:  0.35
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 4
+# Runtime : 18.12265634536743
+# Accuracy:  0.32
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 5
+# Runtime : 21.20010232925415
+# Accuracy:  0.51
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 6
+# Runtime : 25.611743211746216
+# Accuracy:  0.45
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 7
+# Runtime : 30.067214488983154
+# Accuracy:  0.62
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 8
+# Runtime : 33.94936728477478
+# Accuracy:  0.57
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 9
+# Runtime : 39.33009910583496
+# Accuracy:  0.63
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 10
+# Runtime : 42.78562831878662
+# Accuracy:  0.6
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 15
+# Runtime : 64.37325668334961
+# Accuracy:  0.71
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 20
+# Runtime : 86.92861557006836
+# Accuracy:  0.71
+
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 20
+# Runtime : 86.92861557006836
+# Accuracy:  0.71
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 25
+# Runtime : 107.03025197982788
+# Accuracy:  0.73
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 30
+# Runtime : 127.78702235221863
+# Accuracy:  0.75
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 35
+# Runtime : 148.59967708587646
+# Accuracy:  0.76
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 40
+# Runtime : 171.53010773658752
+# Accuracy:  0.77
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 45
+# Runtime : 192.99790263175964
+# Accuracy:  0.75
+
+# CLIENTS 10, HIDDEN 100, EPOCHS 50
+# Runtime : 212.79442358016968
+# Accuracy:  0.73
+
+
+
+
