@@ -12,30 +12,42 @@ from multiprocessing import Pool
 from itertools import repeat
 from concurrent.futures import ProcessPoolExecutor
 
-CLIENTS = 16
-HIDDEN = 2
-EPOCHS = 1
-print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
+CLIENTS = 1000
+SIZE = 6000//CLIENTS
+EPOCHS = 10
+print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
-train = datasets.MNIST('', train=True, download=True,
+# train = datasets.MNIST('', train=True, download=True,
+#                        transform=transforms.Compose([
+#                            transforms.ToTensor()
+#                        ]))
+
+# test = datasets.MNIST('', train=False, download=True,
+#                        transform=transforms.Compose([
+#                            transforms.ToTensor()
+#                        ]))
+
+dataset = datasets.MNIST('', train=True, download=True,
                        transform=transforms.Compose([
                            transforms.ToTensor()
                        ]))
 
-test = datasets.MNIST('', train=False, download=True,
-                       transform=transforms.Compose([
-                           transforms.ToTensor()
-                       ]))
+indices = np.arange(len(dataset))
+train_indices, test_indices = train_test_split(indices, train_size=SIZE*10, test_size=10000, stratify=dataset.targets)
+train = Subset(dataset, train_indices)
+test = Subset(dataset, test_indices)
+
 
 trainset = torch.utils.data.DataLoader(train, batch_size=10, shuffle=True, num_workers=2)
 
 testset = torch.utils.data.DataLoader(test, batch_size=10, shuffle=False, num_workers=2)
 
 
-trainset_shape = trainset.dataset.train_data.shape
-testset_shape = testset.dataset.test_data.shape
+# trainset_shape = trainset.dataset.train_data.shape
+# testset_shape = testset.dataset.test_data.shape
+# print(f'train = {trainset_shape}\n test = {testset_shape}')
 
 
 class Net(nn.Module):
@@ -141,7 +153,7 @@ with torch.no_grad():
                 correct += 1
             total += 1
 
-print("Accuracy: ", round(correct/total, 2))
+print("Accuracy: ", round(correct/total, 3))
 
 PATH = "models/mnist_t.pth"
 

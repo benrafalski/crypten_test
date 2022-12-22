@@ -14,7 +14,7 @@ from torch.utils.data import Subset, DataLoader
 
 CLIENTS = 10
 HIDDENLAYER = 1000//CLIENTS
-EPOCHS = 5
+EPOCHS = 40
 
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}')
 
@@ -79,17 +79,28 @@ class Global(crypten.nn.Module):
             crypten.nn.LogSoftmax(dim=1)
         )
 
-    def forward(self, c):        
+    def forward(self, c):   
+        start = time.time()   
+        client_time = 0  
         for i in range(len(c)):
-            c[i] = self.models[i](c[i])
+            if i == 0:
+                c[i] = self.models[i](c[i])
+                client_time = time.time() - start
+                print(f'client time = {client_time}')
+            else:
+                c[i] = self.models[i](c[i])
 
+        server_time = 0
+        start = time.time()
         if(self.encrypted):
             x = crypten.cat(c, dim=1)
         else:
             x = torch.cat(c, dim=1)
         x = self.layer3(x)
         x = self.layer4(x)
-        return x
+        server_time = time.time() - start
+        total_time = server_time + client_time
+        return x, total_time
 
 
 clients = []
@@ -112,7 +123,8 @@ def enc_data(data):
     y_enc = crypten.cryptensor(y_one_hot)
     return x_enc, y_enc
 
-start = time.time()
+# start = time.time()
+server_time = 0
 for epoch in range(EPOCHS): 
     i=0
     for data in zip(*train): 
@@ -124,19 +136,22 @@ for epoch in range(EPOCHS):
             X.append(a.view(-1, 784))
             y.append(b)
 
-        output = model(X)  
+        output, total_time = model(X)  
+        start = time.time()
         if(output.size() != y[0]._tensor.size()):
             continue
         loss = loss_criterion(output, y[0])  
         model.zero_grad() 
         loss.backward()  
         optimizer.step()
+        server_time = time.time() - start
+        server_time = server_time + total_time
         if i%100 == 99:
             print(f'epoch={epoch}, batch={i}')
         i+=1
 
     
-print(f'Runtime : {time.time()-start}')
+print(f'Runtime : {server_time}')
 
 
 correct = 0
@@ -155,7 +170,7 @@ with torch.no_grad():
             a, b = d
             X.append(a.view(-1, 784))
             y.append(b) 
-        output = model(X)  
+        output, _ = model(X)  
         for idx, i in enumerate(output):
             if torch.argmax(i) == y[0][idx]:
                 correct += 1

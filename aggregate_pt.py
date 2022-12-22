@@ -9,9 +9,14 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-CLIENTS = 10
+# clients = 10 -> 40 epochs has 0.77 accuracy
+# clients = 100 -> 5 epochs has 0.11 accuracy
+# clients = 500 -> 5 epochs has 0.11 accuracy
+# clients = 1000 -> 5 epochs has 0.11 accuracy
+
+CLIENTS = 1000
 HIDDEN = 1000//CLIENTS
-EPOCHS = 40
+EPOCHS = 5
 print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDEN}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -134,7 +139,7 @@ with torch.no_grad():
             total += 1
         # print(time.time() - s)
 
-print("Accuracy: ", round(correct/total, 2))
+print("Accuracy: ", round(correct/total, 3))
 
 PATH = "models/aggregate_pt.pth"
 
@@ -222,6 +227,7 @@ torch.save(state, PATH)
 # CLIENTS 10, HIDDEN 100, EPOCHS 50
 # Runtime : 212.79442358016968
 # Accuracy:  0.73
+
 
 
 
