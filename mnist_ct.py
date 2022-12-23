@@ -11,31 +11,37 @@ from torchvision import transforms, datasets
 import torchvision
 import torch
 import itertools
+from sklearn.model_selection import train_test_split
+import numpy as np
+from statistics import mean
 
-CLIENTS = 100
-print(f'CLIENTS {CLIENTS}')
+CLIENTS = 500
+SIZE = 6000//CLIENTS
+EPOCHS = 100
+print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
 crypten.init()
 
-train = datasets.MNIST('', train=True, download=True,
+dataset = datasets.MNIST('', train=True, download=True,
                        transform=transforms.Compose([
                            transforms.ToTensor()
                        ]))
 
-test = datasets.MNIST('', train=False, download=True,
-                       transform=transforms.Compose([
-                           transforms.ToTensor()
-                       ]))
+indices = np.arange(len(dataset))
+train_indices, test_indices = train_test_split(indices, train_size=SIZE*10, test_size=10000, stratify=dataset.targets)
+train = Subset(dataset, train_indices)
+test = Subset(dataset, test_indices)
+
 
 trainset = torch.utils.data.DataLoader(train, batch_size=10, shuffle=True, num_workers=2)
 
 testset = torch.utils.data.DataLoader(test, batch_size=10, shuffle=False, num_workers=2)
 
 
-trainset_shape = trainset.dataset.train_data.shape
-testset_shape = testset.dataset.test_data.shape
+# trainset_shape = trainset.dataset.train_data.shape
+# testset_shape = testset.dataset.test_data.shape
 
-print(trainset_shape, testset_shape)
+# print(trainset_shape, testset_shape)
 
 
 class Net(crypten.nn.Module):
@@ -95,70 +101,74 @@ optimizer = crypten.optim.SGD(
 
 
 def train():
-    client_time = 0
-    total_client_time = 0
-    server_time = 0
-    total_server_time = 0
-    i = 0
-    for data in trainset:
-        # encrypt the data
-        X1, y1 = data
-        x1_enc = crypten.cryptensor(X1.view(-1, 784))
-        y1_one_hot = torch.nn.functional.one_hot(y1)
-        y1_enc = crypten.cryptensor(y1_one_hot)
+    client_runtimes = []
+    server_runtimes = []
+    epoch_runtimes = []
+    for epoch in range(EPOCHS):
+        print(f'Starting epoch #{epoch+1}')
+        epoch_start = time.time()
+        for data in trainset:
+            # encrypt the data
+            X1, y1 = data
+            x1_enc = crypten.cryptensor(X1.view(-1, 784))
+            y1_one_hot = torch.nn.functional.one_hot(y1)
+            y1_enc = crypten.cryptensor(y1_one_hot)
 
-        # train first 2 layers using client
-        
-        client_output = []
-        for h in range(CLIENTS):
-
-            if h == 0:
-                cstart = time.time()
-                c = client_net[h](x1_enc)
-                client_time = time.time() - cstart
-            else:
-                c = client_net[h](x1_enc)
-
-            # print(f'here {h}')
+            # train first 2 layers using client
             
-            # print(f'after c {h}')
-            client_output.append(c)
+            client_output = []
+            for h in range(CLIENTS):
+                if h == 0:
+                    client_start = time.time()
+                    c = client_net[h](x1_enc)
+                    client_end = time.time() - client_start
+                    client_runtimes.append(client_end)
+                else:
+                    c = client_net[h](x1_enc)
+
+                client_output.append(c)
 
 
-        total_client_time = total_client_time + client_time
-
-        server_time = time.time()
-        # transfer network to server
-        net = client_net[0]
-        # finish last 2 layers in server side
-        output = net(client_output[0])
-        # send network back to client side to update parameters and repeat
-        client_net[0] = net
+            server_start = time.time()
+            # transfer network to server
+            net = client_net[0]
+            # finish last 2 layers in server side
+            output = net(client_output[0])
+            # send network back to client side to update parameters and repeat
+            client_net[0] = net
 
 
-        if(output.size() != y1_enc._tensor.size()):
-            continue
-        loss = loss_criterion(output, y1_enc)
-        net.zero_grad()
-        loss.backward()
-        optimizer.step()
+            if(output.size() != y1_enc._tensor.size()):
+                continue
+            loss = loss_criterion(output, y1_enc)
+            net.zero_grad()
+            loss.backward()
+            optimizer.step()
+            server_end = time.time() - server_start
+            server_runtimes.append(server_end)
 
-        if i % 100 == 99:
-            print(f'epoch={1}, batch={i}')
-        i += 1
-        # # stop after 1200*10 samples
-        # if i == 1200:
-        #     break
-        total_server_time = total_server_time + (time.time()- server_time)
+        epoch_end = time.time() - epoch_start
+        epoch_runtimes.append(epoch_end)
 
-    return (total_server_time+total_client_time)
+    total_runtime_all_epochs = sum(epoch_runtimes)
+    avg_epoch_runtime = mean(epoch_runtimes)
+    avg_server_runtime = mean(server_runtimes)
+    avg_client_runtime = mean(client_runtimes)
+    avg_runtime = avg_server_runtime + avg_client_runtime
+    return total_runtime_all_epochs, avg_epoch_runtime, avg_server_runtime, avg_client_runtime, avg_runtime
+
+
 
 
 start = time.time()
 
-t = train()
-print(f"Runtime: {time.time() - start}")
-print(f'Runtime : {t}')
+total_runtime_all_epochs, avg_epoch_runtime, avg_server_runtime, avg_client_runtime, avg_runtime = train()
+
+print(f"total_runtime_all_epochs : {total_runtime_all_epochs}")
+print(f"avg_epoch_runtime : {avg_epoch_runtime}")
+print(f"avg_server_runtime : {avg_server_runtime}")
+print(f"avg_client_runtime : {avg_client_runtime}")  
+print(f"avg_runtime : {avg_runtime}")
 
 
 # testing model accuracy
@@ -193,3 +203,24 @@ torch.save(state, PATH)
 # 100       9293.01   0.92      1
 # 500       520.25    0.10      1
 # 1000      520.40    0.10      1 
+
+
+
+
+
+# clients -> 1000 use 85 for 0.656 accuracy
+
+# clients -> 500 use 100 for 0.751 accuracy
+
+# clients -> 100 use 120 for 0.862 accuracy
+    # total_runtime_all_epochs : 11614.416815519333
+    # avg_epoch_runtime : 96.78680679599444
+    # avg_server_runtime : 0.2015748949540486
+    # avg_client_runtime : 0.014472565518485175
+    # avg_runtime : 0.21604746047253376
+# cleints -> 10 use 20 for 0.951 accuracy
+    # total_runtime_all_epochs : 3367.824250936508
+    # avg_epoch_runtime : 168.39121254682541
+    # avg_server_runtime : 0.19396333562768875
+    # avg_client_runtime : 0.013238914926846822
+    # avg_runtime : 0.20720225055453556

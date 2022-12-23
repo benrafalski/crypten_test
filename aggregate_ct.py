@@ -11,6 +11,7 @@ import torch.optim as optim
 import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
+from statistics import mean
 
 CLIENTS = 10
 HIDDENLAYER = 1000//CLIENTS
@@ -123,9 +124,11 @@ def enc_data(data):
     y_enc = crypten.cryptensor(y_one_hot)
     return x_enc, y_enc
 
-# start = time.time()
+epoch_times = []
 server_time = 0
-for epoch in range(EPOCHS): 
+for epoch in range(EPOCHS):
+    print(f'EPOCH : {epoch+1}') 
+    e_start = time.time()
     i=0
     for data in zip(*train): 
 
@@ -147,11 +150,11 @@ for epoch in range(EPOCHS):
         server_time = time.time() - start
         server_time = server_time + total_time
         if i%100 == 99:
-            print(f'epoch={epoch}, batch={i}')
+            print(f'epoch={epoch+1}, batch={i}')
         i+=1
+    e_time = time.time() - e_start
+    epoch_times.append(e_time)
 
-    
-print(f'Runtime : {server_time}')
 
 
 correct = 0
@@ -176,7 +179,10 @@ with torch.no_grad():
                 correct += 1
             total += 1
 
-print("Accuracy: ", round(correct/total, 2))
+print("Accuracy: ", round(correct/total, 3))
+print(f'Server Time : {server_time}')
+print(f'Runtime : {sum(epoch_times)}')
+print(f'Average Epoch time : {mean(epoch_times)}')
 
 PATH = "models/aggregate_ct.pth"
 
@@ -195,3 +201,24 @@ torch.save(state, PATH)
 # 1000      520.40    0.10      5          
 
 # 0.0036624871584044
+
+# clients = 10 -> 40 epochs has 0.770 accuracy 
+    # client time = 0.018553733825683594
+    # Server Time : 0.5572919845581055
+    # Runtime : 14379.756975889206
+    # Average Epoch time : 359.49392439723016 
+# clients = 100 -> 5 epochs has 0.112 accuracy
+    # client time = 0.007715940475463867
+    # Server Time : 1.5304021835327148
+    # Runtime : 568.9308671951294
+    # Average Epoch time : 113.78617343902587
+# clients = 500 -> 5 epochs has 0.112 accuracy
+    # client time = 0.007025480270385742
+    # Server Time : 6.287745475769043
+    # Runtime : 485.6991584300995
+    # Average Epoch time : 97.1398316860199
+# clients = 1000 -> 5 epochs has 0.113 accuracy
+    # client time = 0.0070912837982177734
+    # Server Time : 12.435250520706177
+    # Runtime : 478.9982352256775
+    # Average Epoch time : 95.7996470451355

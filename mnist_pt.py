@@ -12,9 +12,14 @@ from multiprocessing import Pool
 from itertools import repeat
 from concurrent.futures import ProcessPoolExecutor
 
-CLIENTS = 1000
+# clients -> 1000 use 85 for 0.656 accuracy
+# clients -> 500 use 100 for 0.751 accuracy
+# clients -> 100 use 120 for 0.862 accuracy
+# cleints -> 10 use 20 for 0.951 accuracy
+
+CLIENTS = 2
 SIZE = 6000//CLIENTS
-EPOCHS = 10
+EPOCHS = 5
 print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -96,6 +101,8 @@ total_server_time = 0
 
 for epoch in range(EPOCHS): 
     i=0
+    e_time = 0
+    se_time = time.time()
     for data in trainset:  
         X, y = data
         client_outs = []
@@ -130,10 +137,13 @@ for epoch in range(EPOCHS):
         optimizer.step() 
 
 
-        if i%100 == 99:
-            print(f'epoch={epoch}, batch={i}')
+        # if i%100 == 99:
+        #     print(f'epoch={epoch}, batch={i}')
         i+=1 
         total_server_time = total_server_time + (time.time()- server_time)
+        
+    print(f'EPOCH {epoch} runtime : {time.time()-se_time}')
+
 
 print(f'client time = {total_client_time}, server time = {total_server_time}')
 print(f'Runtime : {total_server_time+total_client_time}')
