@@ -73,6 +73,7 @@ class Net(nn.Module):
             # print('hi')
             x = F.relu(self.fc3(x))
             x = F.log_softmax(self.fc4(x), dim=1) 
+            # x = torch.sigmoid(self.fc4(x))
             self.serv = False
         return x 
 

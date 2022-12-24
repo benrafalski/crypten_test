@@ -15,9 +15,9 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from statistics import mean
 
-CLIENTS = 500
+CLIENTS = 1000
 SIZE = 6000//CLIENTS
-EPOCHS = 100
+EPOCHS = 85
 print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
 crypten.init()
@@ -209,9 +209,17 @@ torch.save(state, PATH)
 
 
 # clients -> 1000 use 85 for 0.656 accuracy
-
+    # total_runtime_all_epochs : 7593.93824839592
+    # avg_epoch_runtime : 89.34044998112847
+    # avg_server_runtime : 0.20696134486440884
+    # avg_client_runtime : 0.015807463141048656
+    # avg_runtime : 0.2227688080054575
 # clients -> 500 use 100 for 0.751 accuracy
-
+    # total_runtime_all_epochs : 8973.799205303192
+    # avg_epoch_runtime : 89.73799205303192
+    # avg_server_runtime : 0.20459610674313305
+    # avg_client_runtime : 0.014046589732170106
+    # avg_runtime : 0.21864269647530316
 # clients -> 100 use 120 for 0.862 accuracy
     # total_runtime_all_epochs : 11614.416815519333
     # avg_epoch_runtime : 96.78680679599444
