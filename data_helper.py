@@ -49,7 +49,6 @@ def split_features(
     mnist_norm, mnist_labels = _get_norm_mnist(dir, reduced, binary)
     mnist_train_norm, mnist_test_norm = mnist_norm
     mnist_train_labels, mnist_test_labels = mnist_labels
-
     num_features = mnist_train_norm.shape[1]
     split_point = int(split * num_features)
 
@@ -68,12 +67,23 @@ def split_features(
 
 
 def main():
+
+    filenames = ['/tmp/alice_train.pth', 
+             '/tmp/bob_train.pth', 
+             '/tmp/alice_test.pth',
+             '/tmp/bob_test.pth', 
+             '/tmp/train_labels.pth',
+             '/tmp/test_labels.pth']
+
+    for fn in filenames:
+        if os.path.exists(fn): os.remove(fn)
+
     split_features(
             split=0.72,
             dir="tmp",
             party1="alice",
             party2="bob",
-            reduced=100,
+            reduced=None,
             binary=False,
         )
 

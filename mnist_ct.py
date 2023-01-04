@@ -110,6 +110,7 @@ def train():
         for data in trainset:
             # encrypt the data
             X1, y1 = data
+            print(X1.size())
             x1_enc = crypten.cryptensor(X1.view(-1, 784))
             y1_one_hot = torch.nn.functional.one_hot(y1)
             y1_enc = crypten.cryptensor(y1_one_hot)
