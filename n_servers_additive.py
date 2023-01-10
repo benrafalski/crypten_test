@@ -57,7 +57,7 @@ def run_encrypted_training():
     x_bob_enc = crypten.load_from_party('tmp/bob_train.pth', src=BOB)
     
 
-    print("here")
+    # print("here")
     crypten.print(x_alice_enc.size())
     crypten.print(x_bob_enc.size())
     
@@ -124,9 +124,6 @@ def run_encrypted_training():
             correct += (pred == labs).sum()
             # crypten.print(f'Correct {correct}')
 
-
-            
-            
 
         accuracy = 100 * correct / 60000
         crypten.print(f"Accuracy = {accuracy:.4f}")
