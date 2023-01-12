@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import torch
 from torchvision.datasets import MNIST
 from torch.utils.data import random_split, DataLoader
@@ -63,7 +65,7 @@ class FederatedNet(torch.nn.Module):
         self.fc2 = torch.nn.Linear(64, 64)
         self.fc3 = torch.nn.Linear(64, 64)
         self.fc4 = torch.nn.Linear(64, 10)
-
+        
         self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
     
     def forward(self, x_batch):
@@ -101,15 +103,33 @@ class FederatedNet(torch.nn.Module):
     # calculates the accuracy for each batch
     def batch_accuracy(self, outputs, labels):
         with torch.no_grad():
-            _, predictions = torch.max(outputs, dim=1)
-            return torch.tensor(torch.sum(predictions == labels).item() / len(predictions))
+            predictions = outputs.get_plain_text().argmax(1)
+            # print(f"pred {predictions}")
+            # print(f"labels = {labels}")
+            # print(f'acc = {(predictions == labels).sum()}')
+            return torch.tensor((predictions == labels).sum() / len(predictions))
     
     # returns the loss and accuracy for each batch
     def _process_batch(self, batch):
         images, labels = batch
+        # convert images to cryptensors
         images = images.view(-1,784)
-        outputs = self(images)
-        loss = torch.nn.functional.cross_entropy(outputs, labels)
+        images = crypten.cryptensor(images)
+        # convert labels to one hot encoding
+        labels_one_hot = torch.nn.functional.one_hot(labels)
+
+        pytorch_model = self
+        dummy_input = torch.empty((1, 784))
+        model = crypten.nn.from_pytorch(pytorch_model, dummy_input)
+        model.encrypt()
+        model.train()
+
+        outputs = model(images)
+        loss_criterion = crypten.nn.CrossEntropyLoss()
+
+        print(f"sizes {outputs.size()} {labels_one_hot.size()}")
+
+        loss = loss_criterion(outputs, labels_one_hot)
         accuracy = self.batch_accuracy(outputs, labels)
         return (loss, accuracy)
     
@@ -129,10 +149,11 @@ class FederatedNet(torch.nn.Module):
                 loss.detach()
                 losses.append(loss)
                 accs.append(acc)
-            avg_loss = torch.stack(losses).mean().item()
-            print(type(losses[0]))
+
+            # print(type(losses[0]))    
+            # print(type(accs[0]))
+            avg_loss = crypten.stack(losses).mean().get_plain_text().item()
             avg_acc = torch.stack(accs).mean().item()
-            print(type(accs[0]))
             history.append((avg_loss, avg_acc))
         return history
     
