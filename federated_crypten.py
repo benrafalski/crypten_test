@@ -104,9 +104,6 @@ class FederatedNet(torch.nn.Module):
     def batch_accuracy(self, outputs, labels):
         with torch.no_grad():
             predictions = outputs.get_plain_text().argmax(1)
-            # print(f"pred {predictions}")
-            # print(f"labels = {labels}")
-            # print(f'acc = {(predictions == labels).sum()}')
             return torch.tensor((predictions == labels).sum() / len(predictions))
     
     # returns the loss and accuracy for each batch
