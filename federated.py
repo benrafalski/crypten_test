@@ -4,11 +4,11 @@ from torch.utils.data import random_split, DataLoader
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-import crypten
+# import crypten
 
 # %matplotlib inline
 plt.rcParams['figure.figsize'] = [5, 5]
-crypten.init()
+# crypten.init()
 
 
 # get datasets
@@ -63,15 +63,25 @@ class FederatedNet(torch.nn.Module):
         self.fc2 = torch.nn.Linear(64, 64)
         self.fc3 = torch.nn.Linear(64, 64)
         self.fc4 = torch.nn.Linear(64, 10)
-
         self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
-    
+
     def forward(self, x_batch):
         x = F.relu(self.fc1(x_batch))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        x = self.fc4(x)
-        return F.log_softmax(x, dim=1)
+        x = F.log_softmax(self.fc4(x), dim=1)
+        return x
+
+    def forward_client(self, x_batch):
+        x = F.relu(self.fc1(x_batch))
+        x = F.relu(self.fc2(x))
+        # print(f'client out type {type(x)}')
+        return x
+
+    def forward_server(self, x):
+        x = F.relu(self.fc3(x))
+        x = F.log_softmax(self.fc4(x), dim=1)
+        return x
     
 
     # return the dictionary of the layers
@@ -104,38 +114,66 @@ class FederatedNet(torch.nn.Module):
             _, predictions = torch.max(outputs, dim=1)
             return torch.tensor(torch.sum(predictions == labels).item() / len(predictions))
     
-    # returns the loss and accuracy for each batch
     def _process_batch(self, batch):
+        features, labels = batch
+        outputs = self(features)
+        loss = torch.nn.functional.cross_entropy(outputs, labels)
+        accuracy = self.batch_accuracy(outputs, labels)
+        return (loss, accuracy)
+
+    # returns the loss and accuracy for each batch
+    def _process_client_batch(self, batch):
         images, labels = batch
         images = images.view(-1,784)
-        outputs = self(images)
+        outputs = self.forward_client(images)
+        # print(f'client batch type {type(outputs)}')
+        return (outputs, labels)
+
+    def _process_server_batch(self, batch):
+        output, labels = batch
+        # print(f'output type: {type(output)}')
+        outputs = self.forward_server(output)
         loss = torch.nn.functional.cross_entropy(outputs, labels)
         accuracy = self.batch_accuracy(outputs, labels)
         return (loss, accuracy)
     
     # trains the federated model
-    def fit(self, dataset, epochs, lr, batch_size=128, opt=torch.optim.SGD):
+    def fit_client(self, dataset, epochs, lr, batch_size=128, opt=torch.optim.SGD):
         dataloader = DeviceDataLoader(DataLoader(dataset, batch_size, shuffle=True), device)
+        outputs = []
+        labels = []
+        for batch in dataloader:
+            output, label = self._process_client_batch(batch)
+            # print(f'fit client output type {type(output)}')
+            outputs.append(output)
+            labels.append(label)
+
+        merged_list = [(outputs[i], labels[i]) for i in range(0, len(outputs))]
+
+        return merged_list
+    
+    def fit_server(self, dataloader, lr, opt=torch.optim.SGD):
+
         optimizer = opt(self.parameters(), lr)
         history = []
-        for epoch in range(epochs):
-            losses = []
-            accs = []
-            for batch in dataloader:
-                loss, acc = self._process_batch(batch)
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                loss.detach()
-                losses.append(loss)
-                accs.append(acc)
-            avg_loss = torch.stack(losses).mean().item()
-            print(type(losses[0]))
-            avg_acc = torch.stack(accs).mean().item()
-            print(type(accs[0]))
-            history.append((avg_loss, avg_acc))
+        losses = []
+        accs = []
+        for batch in dataloader:
+            # batch needs to be a tuple
+            # print(f'type batch {type(dataloader)}')
+            loss, acc = self._process_server_batch(batch)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            loss.detach()
+            losses.append(loss)
+            accs.append(acc)
+        avg_loss = torch.stack(losses).mean().item()
+        avg_acc = torch.stack(accs).mean().item()
+        history.append((avg_loss, avg_acc))
+        print('Loss = {}, Accuracy = {}'.format(round(history[-1][0], 4), round(history[-1][1], 4)))
         return history
-    
+
     # evalutates the model
     def evaluate(self, dataset, batch_size=128):
         dataloader = DeviceDataLoader(DataLoader(dataset, batch_size), device)
@@ -171,11 +209,12 @@ class Client:
         # sets each layer's weight and bias to the weight and bias from parameter_dict
         net.apply_parameters(parameters_dict)
         # train the client model
-        train_history = net.fit(self.dataset, epochs_per_client, learning_rate, batch_size)
-        # print results for each client
-        print('{}: Loss = {}, Accuracy = {}'.format(self.client_id, round(train_history[-1][0], 4), round(train_history[-1][1], 4)))
+        train_history = net.fit_client(self.dataset, epochs_per_client, learning_rate, batch_size)
+        # train_history = output, labels
+            # output = list of outputs from each batch
+            # labels = list of labels from each batch
         # returns this clients parameters
-        return net.get_parameters()
+        return (net.get_parameters(), train_history)
 
 
 # number of images per client
@@ -197,14 +236,22 @@ for i in range(rounds):
     # initialize new weight and biases to 0
     new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
     # train each client
+    client_outs = []
     for client in clients:
         # train the client using the current weights and biases from the global model
-        client_parameters = client.train(curr_parameters)
+        client_parameters, output_list = client.train(curr_parameters)
+        client_outs.append(output_list)
         fraction = client.get_dataset_size() / total_train_size
         # save the new weights and biases for each client
         for layer_name in client_parameters:
             new_parameters[layer_name]['weight'] += fraction * client_parameters[layer_name]['weight']
             new_parameters[layer_name]['bias'] += fraction * client_parameters[layer_name]['bias']
+
+    
+    for out_list in client_outs:
+        global_net.fit_server(out_list, learning_rate)
+
+    # print('{}: Loss = {}, Accuracy = {}'.format(self.client_id, round(train_history[-1][0], 4), round(train_history[-1][1], 4)))
 
     # update the weights and biases for the global model
     global_net.apply_parameters(new_parameters)
