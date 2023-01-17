@@ -233,6 +233,7 @@ for i in range(rounds):
     print('Start Round {} ...'.format(i + 1))
     # get the weights and biases from the global model
     curr_parameters = global_net.get_parameters()
+    print(f'type for params is {curr_parameters}')
     # initialize new weight and biases to 0
     new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
     # train each client

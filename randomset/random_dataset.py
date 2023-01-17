@@ -1,10 +1,9 @@
 from imports import *
 
-class SepsisDataset(Dataset):
+class RandomDataset(Dataset):
     def __init__(self, data_size):
-        file_out = pd.read_csv('sepsis_data/sepsis_survival_primary_cohort.csv')
-        x = file_out.iloc[1:(data_size+1), 0:3].values
-        y = file_out.iloc[1:(data_size+1), 3].values
+        random.seed(8560)
+        x, y = make_blobs(n_samples=data_size, centers=3, n_features=4)
 
         # feature scaling
         sc = StandardScaler()
@@ -22,11 +21,18 @@ class SepsisDataset(Dataset):
         return self.X_train[idx], self.y_train[idx]
 
 
-def split_data_loaders(data):
-    train_dataset, test_dataset = random_split(data, [int(len(data) * 0.9), int(len(data) * 0.1)])
-    train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=10, shuffle=True)
+def split_data_loaders(n_train, n_test=10000, n_batch=10):
+    n_samples = n_train + n_test
+    data = RandomDataset(n_samples)
+    train_dataset, test_dataset = random_split(data, [n_train, n_test])
+    train_loader = DataLoader(train_dataset, batch_size=n_batch, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=n_batch, shuffle=True)
     return (train_loader, test_loader)
 
 
 
+
+
+
+
+    

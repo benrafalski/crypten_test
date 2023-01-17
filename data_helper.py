@@ -56,7 +56,9 @@ def split_features(
     party2_train = mnist_train_norm[:, :, split_point:]
     party1_test = mnist_test_norm[:, :, :split_point]
     party2_test = mnist_test_norm[:, :, split_point:]
+    print(type(party1_train))
 
+    return 
     torch.save(party1_train, os.path.join(dir, party1 + "_train.pth"))
     torch.save(party2_train, os.path.join(dir, party2 + "_train.pth"))
     torch.save(party1_test, os.path.join(dir, party1 + "_test.pth"))
