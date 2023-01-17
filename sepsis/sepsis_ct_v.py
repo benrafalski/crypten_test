@@ -87,6 +87,10 @@ def train(num_epochs, trainset, num_clients, client_net, loss_criterion, optimiz
             # send network back to client side to update parameters and repeat
             client_net[0] = net
 
+            print(output.size())
+            print(y1.size())
+
+
 
             if(output.size() != y1_enc._tensor.size()):
                 continue
