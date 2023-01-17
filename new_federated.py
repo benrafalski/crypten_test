@@ -6,10 +6,10 @@ import torch.nn.functional as F
 import crypten
 import crypten.mpc as mpc
 import crypten.communicator as comm 
-import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from torchmetrics.classification import BinaryAccuracy
 
 
 class SepsisDataset(Dataset):
@@ -25,7 +25,7 @@ class SepsisDataset(Dataset):
 
         # convert to tensors
         self.X_train = torch.tensor(x_train, dtype=torch.float32)
-        self.y_train = torch.tensor(y_train)
+        self.y_train = torch.tensor(y_train, dtype=torch.float32)
 
     def __len__(self):
         return len(self.y_train)
@@ -46,7 +46,7 @@ class FederatedNet(nn.Module):
         self.fc1 = nn.Linear(3, 5)
         self.fc2 = nn.Linear(5, 5)
         self.fc3 = nn.Linear(5, 5)
-        self.fc4 = nn.Linear(5, 2)
+        self.fc4 = nn.Linear(5, 1)
         self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
 
     def forward_client(self, x_batch):
@@ -56,7 +56,7 @@ class FederatedNet(nn.Module):
 
     def forward_server(self, x):
         x = F.relu(self.fc3(x))
-        x = F.log_softmax(self.fc4(x), dim=1)
+        x = torch.sigmoid(self.fc4(x).view(-1, 10))
         return x
 
     # return the dictionary of the layers
@@ -93,25 +93,43 @@ class FederatedNet(nn.Module):
             }
         return parameters_dict
 
+    def evaluate(self, dataset):
+        losses = []
+        accs = []
+        loss_criterion = torch.nn.BCELoss()
+        metric = BinaryAccuracy()
+        with torch.no_grad():
+            for batch in dataset:
+                X, y = batch
+                client_out = self.forward_client(X)
+                server_out = self.forward_server(client_out)
+
+                y = torch.unsqueeze(y, 0)
+                loss = loss_criterion(server_out, y)
+
+                with torch.no_grad():
+                    acc = metric(server_out, y)
+
+                losses.append(loss)
+                accs.append(acc)
+        avg_loss = torch.stack(losses).mean().item()
+        avg_acc = torch.stack(accs).mean().item()
+        return (avg_loss, avg_acc)
+
 crypten.init()
 torch.set_num_threads(1)
 
+SIZE = 10000
+
 # data stuff
-sepsis = SepsisDataset(1000)
+sepsis = SepsisDataset(SIZE)
 train, test = split_data_loaders(sepsis)
 
-# print(type(train))
-
-
-
-
-num_clients = 2
+num_clients = 10
 client = []
 for _ in range(num_clients):
     net = FederatedNet()
     client.append(net)
-
-
 
 
 # dir = "federated_params"
@@ -122,106 +140,119 @@ for _ in range(num_clients):
 @mpc.run_multiprocess(world_size=num_clients)
 def secret_share():
 
-
-
     global_net = FederatedNet()
-    # global_net = crypten.nn.from_pytorch(plaintext_model, dummy_input)
 
-
-    for data in train:
-
-        X, y = data
-
-        x = []
-        # 1. train 2 layers on client side
-        for i in range(num_clients):
-            x.append(client[i].forward_client(X))
+    epochs = 50
+    
+    for epoch in range(epochs):
+        avg_acc = []
+        losses = []
+        for data in train:
             
+            X, y = data
+
+            x = []
+            # 1. train 2 layers on client side
+            for i in range(num_clients):
+                x.append(client[i].forward_client(X))
+
+            sum_clients = x[0]
+            for i in range(1, num_clients):
+                sum_clients += x[i]
+
+            sum_clients /= num_clients
+            sum_clients = F.relu(sum_clients)
+            
+            # 2. grab the weights and biases from each client and secret share them with the server
+            layer1_weights = []
+            layer1_bias = []
+            layer2_weights = []
+            layer2_bias = []
+
+            for cl in client:
+                client_params = cl.get_parameters()
+                layer1_weights.append(client_params['fc1']['weight'])
+                layer1_bias.append(client_params['fc1']['bias'])
+                layer2_weights.append(client_params['fc2']['weight'])
+                layer2_bias.append(client_params['fc2']['bias'])
 
 
+            for i in range(num_clients):
+                layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
+                layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
+                layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
+                layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
 
-        # for i in range(len(x)):
-        #     crypten.print(x[i])
+            # 3. average each weight and bias recieved from the client
+            layer1_weights_total = layer1_weights[0]
+            layer1_bias_total = layer1_bias[0]
+            layer2_weights_total = layer2_weights[0]
+            layer2_bias_total = layer2_bias[0]
 
+            for i in range(1, num_clients):
+                layer1_weights_total += layer1_weights[i]
+                layer1_bias_total += layer1_bias[i]
+                layer2_weights_total += layer2_weights[i]
+                layer2_bias_total += layer2_bias[i]
+
+            layer1_weights_total /= comm.get().get_world_size()
+            layer1_bias_total /= comm.get().get_world_size()
+            layer2_weights_total /= comm.get().get_world_size()
+            layer2_bias_total /= comm.get().get_world_size()
+
+            # 4. update the global weight and biases with the averaged parameters
+            curr_parameters = global_net.get_parameters()
+            new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
+
+            client_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
+
+            client_parameters['fc1']['weight'] = layer1_weights_total
+            client_parameters['fc1']['bias'] = layer1_bias_total
+            client_parameters['fc2']['weight'] = layer2_weights_total
+            client_parameters['fc2']['bias'] = layer2_bias_total
+
+            for layer_name in client_parameters:
+                new_parameters[layer_name]['weight'] = client_parameters[layer_name]['weight']
+                new_parameters[layer_name]['bias'] = client_parameters[layer_name]['bias']
+
+            global_net.apply_parameters_server(new_parameters)
+            
+            # 5. continue training the global model for the last 2 layers
+            output = global_net.forward_server(sum_clients)
+            
+            # 6. send back to clients and do backprop
+            optimizer = torch.optim.SGD(global_net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
+            loss_criterion = torch.nn.BCELoss()
+            y = torch.unsqueeze(y, 0)
+            loss = loss_criterion(output, y)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            loss.detach()
+
+            metric = BinaryAccuracy()
+            with torch.no_grad():
+                accuracy = metric(output, y)
+                avg_acc.append(accuracy)
+            
+            losses.append(loss)
+
+            # 7. update the parameters for the client
+            
+            global_params = global_net.get_parameters()
+            for cl in client:
+                cl.apply_parameters(global_params)
+
+
+        avg_loss = torch.stack(losses).mean().item()
+        avg_accuracy = torch.stack(avg_acc).mean().item()
         
-        t = x[0] + x[1]
-        t /= 2
-        # crypten.print(t)
-        t = F.relu(t)
-        # crypten.print(t)
-        
+        crypten.print(f'Epoch {epoch+1} accuracy: {round(avg_accuracy, 5)}, Loss: {round(avg_loss, 5)}')
 
-        # 2. grab the weights and biases from each client and secret share them with the server
-        layer1_weights = []
-        layer1_bias = []
-        layer2_weights = []
-        layer2_bias = []
+    crypten.print('Evaluating global model...')
+    avg_loss, avg_acc = global_net.evaluate(test)
+    crypten.print(f'avg_loss {avg_loss}, avg_acc {avg_acc}')
 
-        for cl in client:
-            client_params = cl.get_parameters()
-            layer1_weights.append(client_params['fc1']['weight'])
-            layer1_bias.append(client_params['fc1']['bias'])
-            layer2_weights.append(client_params['fc2']['weight'])
-            layer2_bias.append(client_params['fc2']['bias'])
-
-
-        for i in range(num_clients):
-            layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
-            layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
-            layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
-            layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
-
-        # 3. average each weight and bias recieved from the client
-        layer1_weights_total = layer1_weights[0]
-        layer1_bias_total = layer1_bias[0]
-        layer2_weights_total = layer2_weights[0]
-        layer2_bias_total = layer2_bias[0]
-
-        for i in range(1, num_clients):
-            layer1_weights_total += layer1_weights[i]
-            layer1_bias_total += layer1_bias[i]
-            layer2_weights_total += layer2_weights[i]
-            layer2_bias_total += layer2_bias[i]
-
-        layer1_weights_total /= comm.get().get_world_size()
-        layer1_bias_total /= comm.get().get_world_size()
-        layer2_weights_total /= comm.get().get_world_size()
-        layer2_bias_total /= comm.get().get_world_size()
-
-        # 4. update the global weight and biases with the averaged parameters
-        curr_parameters = global_net.get_parameters()
-        new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
-
-        client_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
-
-        client_parameters['fc1']['weight'] = layer1_weights_total
-        client_parameters['fc1']['bias'] = layer1_bias_total
-        client_parameters['fc2']['weight'] = layer2_weights_total
-        client_parameters['fc2']['bias'] = layer2_bias_total
-
-        for layer_name in client_parameters:
-            new_parameters[layer_name]['weight'] = client_parameters[layer_name]['weight']
-            new_parameters[layer_name]['bias'] = client_parameters[layer_name]['bias']
-
-        global_net.apply_parameters_server(new_parameters)
-        
-
-        # 5. continue training the global model for the last 2 layers
-
-        output = global_net.forward_server(t)
-
-        # 6. send back to clients and do backprop
-
-        crypten.print(f'outsize = {output}, ysize = {y}')
-
-        loss_criterion = crypten.nn.CrossEntropyLoss()
-        loss = loss_criterion(output, y)
-
-        # 7. update the parameters for the client
-
-
-
-        break
 
 
 # print(f'Before : {layer1_weights}')
