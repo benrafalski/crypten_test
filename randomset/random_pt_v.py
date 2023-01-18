@@ -79,7 +79,7 @@ def train(num_epochs, trainset, num_clients, client_net, loss_criterion, optimiz
                 acc = torch.sum(predictions == y1).item() / len(predictions)
                 avg_acc.append(acc)
 
-        print(f'Epoch accuracy is {round(mean(avg_acc), 5)}')
+        print(f'Epoch accuracy is {round(mean(avg_acc), 8)}')
 
         epoch_end = time.time() - epoch_start
         epoch_runtimes.append(epoch_end)
@@ -123,9 +123,9 @@ def main():
     # parameters
     PATH = "models/random_pt_v.pth"
     CLIENTS = 1000
-    SIZE = 100000//CLIENTS
+    SIZE = 1000000//CLIENTS
     # SIZE = 1000
-    EPOCHS = 5
+    EPOCHS = 80
     print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
     # set up dataset

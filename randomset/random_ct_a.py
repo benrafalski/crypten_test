@@ -218,3 +218,10 @@ if __name__ == "__main__":
     # Average Epoch time : 184.75513516902924
     # Accuracy:  0.401
 
+# CLIENTS 1000, HIDDEN 1, EPOCHS 80, SIZE 100
+    # Avg Client Time : 0.00693495899438858
+    # Server Time : 11.973492205897465
+    # Runtime : 15122.581511735916
+    # Average Epoch time : 189.03226889669895
+    # Accuracy:  0.637
+

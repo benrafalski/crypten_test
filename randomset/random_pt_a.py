@@ -27,7 +27,7 @@ class Global(nn.Module):
     def __init__(self, models):
         super(Global, self).__init__()
         self.models = models
-        self.fc3 = nn.Linear(5000, 50)
+        self.fc3 = nn.Linear(1000, 50)
         self.fc4 = nn.Linear(50, 3)
 
     def forward(self, c):
@@ -110,16 +110,18 @@ def save(path, epochs, client, optim):
 # 10 clients? -> 5 epochs 0.9999
 # 100 clients? -> 20 epochs 0.9996
 # 500 clients? -> 50 epochs 0.9990
+# 1000 clients? -> 80 epochs 0.4500
 
 
 def main():
     # parameters
     PATH = "models/random_pt_a.pth"
-    CLIENTS = 500
-    HIDDENLAYER = 5000//CLIENTS
+    CLIENTS = 1000
+    HIDDENLAYER = 1000//CLIENTS
+    # HIDDENLAYER = 1
     EPOCHS = 50
-    TRAIN_SIZE = 100000//CLIENTS
-    # TRAIN_SIZE = 1000
+    # TRAIN_SIZE = 100000//CLIENTS
+    TRAIN_SIZE = 200
     print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}, SIZE {TRAIN_SIZE}')
 
     # data setup
