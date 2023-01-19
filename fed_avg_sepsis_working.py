@@ -34,23 +34,6 @@ class SepsisDataset(Dataset):
     def __getitem__(self, idx):
         return self.X_train[idx], self.y_train[idx]
 
-class ClientDataset(Dataset):
-    def __init__(self, x_train, y_train):
-        # convert to tensors
-        self.X_train = x_train
-        self.y_train = y_train
-
-    def get_batch(self, idx, batch_size=10):
-        X = self.X_train[idx*batch_size:(idx+1)*batch_size]
-        y = self.y_train[idx*batch_size:(idx+1)*batch_size]
-        return (X, y)
-
-    def __len__(self):
-        return len(self.y_train)
-
-    def __getitem__(self, idx):
-        return self.X_train[idx], self.y_train[idx]
-
 
 def split_data_loaders(data):
     train_dataset, test_dataset = random_split(data, [int(len(data) * 0.9), int(len(data) * 0.1)])
@@ -134,78 +117,34 @@ class FederatedNet(nn.Module):
         avg_acc = torch.stack(accs).mean().item()
         return (avg_loss, avg_acc)
 
-class Client:
-    def __init__(self, client_id, dataset, net):
-        self.client_id = client_id
-        self.dataset = dataset
-        self.net = net
-    
-    # returns the data size
-    def get_dataset_size(self):
-        return len(self.dataset)
-    
-    # returns the client id
-    def get_client_id(self):
-        return self.client_id
-
-    def train(self, global_params, data_idx):
-        self.net.apply_parameters(global_params)
-        X, y = self.dataset.get_batch(data_idx, batch_size)
-        x = self.net.forward_client(X)
-        return (x, y, self.net.get_parameters())
 
 
 
-crypten.init()
-torch.set_num_threads(1)
-num_clients = int(sys.argv[1])
-
-SIZE = 1000
-client_data_size = SIZE//num_clients
-batch_size = 10
-
-# data stuff
-sepsis = SepsisDataset(SIZE)
-
-client_datasets = [ClientDataset(sepsis.X_train[i*(client_data_size):(i+1)*client_data_size], sepsis.y_train[i:i+client_data_size]) for i in range(num_clients)]
-
-train, test = split_data_loaders(sepsis)
-
-print(len(client_datasets[0]))
-
-client = [Client('client_' + str(i), client_datasets[i], FederatedNet()) for i in range(num_clients)]
-
-
-@mpc.run_multiprocess(world_size=num_clients)
-def secret_share():
+# dir = "federated_params"
+# torch.save(layer1_weights, os.path.join(dir, "layer1_weights.pth"))
+# torch.save(layer1_bias, os.path.join(dir, "layer1_bias.pth"))
+# torch.save(layer2_weights, os.path.join(dir, "layer2_weights.pth"))
+# torch.save(layer2_bias, os.path.join(dir, "layer2_bias.pth"))
+@mpc.run_multiprocess(world_size=int(sys.argv[1]))
+def secret_share(num_clients, client, train, test, epochs=5):
 
     global_net = FederatedNet()
-
-    epochs = 50
     
     for epoch in range(epochs):
         avg_acc = []
         losses = []
-        for idx in range(client_data_size//batch_size):
+        for data in train:
             
-
-
             global_params = global_net.get_parameters()
-            # for cl in client:
-            #     cl.apply_parameters(global_params)
+            for cl in client:
+                cl.apply_parameters(global_params)
+
+            X, y = data
 
             x = []
-            y = []
-            client_params = []
             # 1. train 2 layers on client side
             for i in range(num_clients):
-                output, labels, params = client[i].train(global_params, idx)
-                x.append(output)
-                y.append(labels)
-                client_params.append(params)
-
-            # for i in range(num_clients):
-            #     x.append(client[i].forward_client(X))
+                x.append(client[i].forward_client(X))
 
             sum_clients = x[0]
             for i in range(1, num_clients):
@@ -213,18 +152,20 @@ def secret_share():
 
             sum_clients /= num_clients
             sum_clients = F.relu(sum_clients)
-
+            
             # 2. grab the weights and biases from each client and secret share them with the server
             layer1_weights = []
             layer1_bias = []
             layer2_weights = []
             layer2_bias = []
 
-            for cl in client_params:
-                layer1_weights.append(cl['fc1']['weight'])
-                layer1_bias.append(cl['fc1']['bias'])
-                layer2_weights.append(cl['fc2']['weight'])
-                layer2_bias.append(cl['fc2']['bias'])
+            for cl in client:
+                client_params = cl.get_parameters()
+                layer1_weights.append(client_params['fc1']['weight'])
+                layer1_bias.append(client_params['fc1']['bias'])
+                layer2_weights.append(client_params['fc2']['weight'])
+                layer2_bias.append(client_params['fc2']['bias'])
+
 
             for i in range(num_clients):
                 layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
@@ -269,41 +210,24 @@ def secret_share():
             # 5. continue training the global model for the last 2 layers
             output = global_net.forward_server(sum_clients)
             
-            # crypten.print(global_params)
-            global_params = global_net.get_parameters()
-            # crypten.print(global_params)
-
-            for i in range(num_clients):
-                crypten.print(f'before {client[i].net.get_parameters()}')
-                client[i].net.apply_parameters(global_params)
-                crypten.print(f'after {client[i].net.get_parameters()}')
-
             # 6. send back to clients and do backprop
             optimizer = torch.optim.SGD(global_net.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
             loss_criterion = torch.nn.BCELoss()
+            y = torch.unsqueeze(y, 0)
+            loss = loss_criterion(output, y)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            loss.detach()
+
             metric = BinaryAccuracy()
-
-
-            outs = []
-            for i in range(num_clients):
-                outs.append(output)
-
-
-            for i in range(num_clients):
-                y[i] = torch.unsqueeze(y[i], 0)
-                loss = loss_criterion(outs[i], y[i])
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                loss.detach()
-                with torch.no_grad():
-                    accuracy = metric(outs[i], y[i])
-                    avg_acc.append(accuracy)
-                
-                losses.append(loss)
+            with torch.no_grad():
+                accuracy = metric(output, y)
+                avg_acc.append(accuracy)
+            
+            losses.append(loss)
 
             # 7. update the parameters for the client
-            
             
 
 
@@ -318,11 +242,25 @@ def secret_share():
 
 
 
-# print(f'Before : {layer1_weights}')
-shares = secret_share()
-print(shares)
+def main():
+    crypten.init()
+    torch.set_num_threads(1)
 
+    SIZE = 10000
+    epochs = 10
 
+    # data stuff
+    sepsis = SepsisDataset(SIZE)
+    train, test = split_data_loaders(sepsis)
 
-# 8. repeat
+    num_clients = int(sys.argv[1])
+    client = []
+    for _ in range(num_clients):
+        net = FederatedNet()
+        client.append(net)
 
+    shares = secret_share(num_clients, client, train, test, epochs)
+    print(shares)
+
+if __name__ == "__main__":
+    main()

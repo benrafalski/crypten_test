@@ -220,8 +220,7 @@ class Client:
 # number of images per client
 examples_per_client = total_train_size // num_clients
 # define a list of client datasets
-client_datasets = random_split(train_dataset, [min(i + examples_per_client, 
-           total_train_size) - i for i in range(0, total_train_size, examples_per_client)])
+client_datasets = random_split(train_dataset, [min(i + examples_per_client, total_train_size) - i for i in range(0, total_train_size, examples_per_client)])
 # define the clients
 clients = [Client('client_' + str(i), client_datasets[i]) for i in range(num_clients)]
 
