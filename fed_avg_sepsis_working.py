@@ -117,25 +117,6 @@ class FederatedNet(nn.Module):
         avg_acc = torch.stack(accs).mean().item()
         return (avg_loss, avg_acc)
 
-
-# crypten.init()
-# torch.set_num_threads(1)
-
-# SIZE = 10000
-# epochs = 50
-
-# # data stuff
-# sepsis = SepsisDataset(SIZE)
-# train, test = split_data_loaders(sepsis)
-
-# # print(len(train))
-
-# num_clients = int(sys.argv[1])
-# client = []
-# for _ in range(num_clients):
-#     net = FederatedNet()
-#     client.append(net)
-
     
 # dir = "federated_params"
 # torch.save(layer1_weights, os.path.join(dir, "layer1_weights.pth"))
@@ -253,8 +234,6 @@ def secret_share(num_clients, client, train, test, epochs=5, SIZE=1000):
             losses.append(loss)
 
             # 7. update the parameters for the client
-            
-
 
         avg_loss = torch.stack(losses).mean().item()
         avg_accuracy = torch.stack(avg_acc).mean().item()
@@ -298,6 +277,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
-# 100 = 0.79889
