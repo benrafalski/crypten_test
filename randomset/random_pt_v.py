@@ -123,9 +123,9 @@ def main():
     # parameters
     PATH = "models/random_pt_v.pth"
     CLIENTS = 1000
-    SIZE = 1000000//CLIENTS
+    SIZE = 100000//CLIENTS
     # SIZE = 1000
-    EPOCHS = 80
+    EPOCHS = 5
     print(f'CLIENTS {CLIENTS}, SIZE {SIZE}, EPOCHS {EPOCHS}')
 
     # set up dataset
@@ -147,7 +147,6 @@ def main():
     print(f"avg_server_runtime : {round(avg_server_runtime, 5)}")
     print(f"avg_client_runtime : {round(avg_client_runtime, 5)}")  
     print(f"avg_runtime : {round(avg_runtime, 5)}")
-
     # evaluate and save the model
     evaluate(client_net[0], testset)
     save(PATH, EPOCHS, client_net[0], optimizer)

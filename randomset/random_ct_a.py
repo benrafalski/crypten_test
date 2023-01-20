@@ -161,7 +161,7 @@ def save(path, epochs, client, optim):
 def main():
     # parameters
     PATH = "models/aggregate_ct.pth"
-    CLIENTS = 1000
+    CLIENTS = 10
     HIDDENLAYER = 1000//CLIENTS
     EPOCHS = 80
     SIZE = 100000//CLIENTS
@@ -188,6 +188,10 @@ def main():
 
     loss_criterion = crypten.nn.CrossEntropyLoss()
     optimizer = crypten.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6)
+
+
+    save("models/random_a_ctos.pth", EPOCHS, clients[0], optimizer)
+    save("models/random_a_stoc.pth", EPOCHS, model, optimizer)
     train(EPOCHS, trainset, model, loss_criterion, optimizer)
     evaluate(CLIENTS, model, clients, test)
     save(PATH, EPOCHS, model, optimizer)

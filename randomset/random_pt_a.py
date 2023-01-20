@@ -120,8 +120,8 @@ def main():
     HIDDENLAYER = 1000//CLIENTS
     # HIDDENLAYER = 1
     EPOCHS = 50
-    # TRAIN_SIZE = 100000//CLIENTS
-    TRAIN_SIZE = 200
+    TRAIN_SIZE = 100000//CLIENTS
+    # TRAIN_SIZE = 200
     print(f'CLIENTS {CLIENTS}, HIDDEN {HIDDENLAYER}, EPOCHS {EPOCHS}, SIZE {TRAIN_SIZE}')
 
     # data setup
@@ -148,3 +148,12 @@ def main():
 if __name__ == "__main__":
     main()
 
+
+
+
+# accuracy
+
+# 10 = 0.9969
+# 100 = 0.9957
+# 500 = 0.3331
+# 1000 = 0.3326
