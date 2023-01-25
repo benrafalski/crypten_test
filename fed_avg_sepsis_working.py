@@ -11,6 +11,8 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from torchmetrics.classification import BinaryAccuracy
 import sys
+import time
+from statistics import mean
 
 
 class SepsisDataset(Dataset):
@@ -124,40 +126,63 @@ class FederatedNet(nn.Module):
 # torch.save(layer2_weights, os.path.join(dir, "layer2_weights.pth"))
 # torch.save(layer2_bias, os.path.join(dir, "layer2_bias.pth"))
 @mpc.run_multiprocess(world_size=int(sys.argv[1]))
-def secret_share(num_clients, client, train, test, epochs=5, SIZE=1000):
+def secret_share(num_clients, client, train, test, epochs=5, SIZE=100):
 
     global_net = FederatedNet()
     
+    global_time_start = time.time()
+    epoch_times = []
     for epoch in range(epochs):
+        epoch_time_start = time.time()
         avg_acc = []
         losses = []
         batch_num = 0
+
+        client_times_avg = []
+        server_times_avg = []
+
         crypten.print(f'Starting epoch {epoch+1}')
         for data in train:
             batch_num += 1
 
             if batch_num % (SIZE/100) == 0:
                 crypten.print(f'\tStarting batch {batch_num} of {len(train)}')
+                crypten.print(f'\t')
             
 
             global_params = global_net.get_parameters()
+
+
+            client_times = []
+
             for cl in client:
+                client_i_start = time.time()
                 cl.apply_parameters(global_params)
+                client_i_end = time.time()-client_i_start
+                client_times.append(client_i_end)
+
+            # assert(len(client) == len(client_times))
 
             X, y = data
 
             x = []
             # 1. train 2 layers on client side
             for i in range(num_clients):
-                # crypten.print(f'\tTraining client {i}')
+                client_forward_start = time.time()
                 x.append(client[i].forward_client(X))
+                client_forward_end = time.time() - client_forward_start
+                client_times[i] += client_forward_end
 
+
+            server_sum_start = time.time()
             sum_clients = x[0]
             for i in range(1, num_clients):
                 sum_clients += x[i]
 
             sum_clients /= num_clients
             sum_clients = F.relu(sum_clients)
+
+            server_sum_end = time.time() - server_sum_start
             
             # 2. grab the weights and biases from each client and secret share them with the server
             layer1_weights = []
@@ -165,21 +190,33 @@ def secret_share(num_clients, client, train, test, epochs=5, SIZE=1000):
             layer2_weights = []
             layer2_bias = []
 
-            for cl in client:
-                client_params = cl.get_parameters()
+            for i in range(num_clients):
+                client_params_start = time.time()
+                client_params = client[i].get_parameters()
                 layer1_weights.append(client_params['fc1']['weight'])
                 layer1_bias.append(client_params['fc1']['bias'])
                 layer2_weights.append(client_params['fc2']['weight'])
                 layer2_bias.append(client_params['fc2']['bias'])
+                client_params_end = time.time() - client_params_start
+                client_times[i] += client_params_end
 
+            
 
             for i in range(num_clients):
+                client_share_start = time.time()
                 layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
                 layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
                 layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
                 layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
+                client_share_end = time.time() - client_share_start
+                client_times[i] += client_share_end
+
+            avg_client_time = mean(client_times)
+            client_times_avg.append(avg_client_time)
 
             # 3. average each weight and bias recieved from the client
+
+            server_time_start = time.time()
             layer1_weights_total = layer1_weights[0]
             layer1_bias_total = layer1_bias[0]
             layer2_weights_total = layer2_weights[0]
@@ -233,29 +270,49 @@ def secret_share(num_clients, client, train, test, epochs=5, SIZE=1000):
             
             losses.append(loss)
 
+            server_time_end = time.time() - server_time_start
+            server_time_end += server_sum_end
+
+            server_times_avg.append(server_sum_end)
+
             # 7. update the parameters for the client
 
         avg_loss = torch.stack(losses).mean().item()
         avg_accuracy = torch.stack(avg_acc).mean().item()
         
-        crypten.print(f'Epoch {epoch+1} accuracy: {round(avg_accuracy, 5)}, Loss: {round(avg_loss, 5)}')
+        epoch_time_current = time.time() - epoch_time_start
+        epoch_times.append(epoch_time_current)
+        crypten.print(f'Epoch {epoch+1} accuracy: {round(avg_accuracy, 5)}, Loss: {round(avg_loss, 5)}, Time: {round(epoch_time_current, 5)}')
+        crypten.print(f'Avg server time: {mean(server_times_avg)}, Avg client time: {mean(client_times_avg)}')
+        crypten.print
 
+
+    crypten.print(f'Total Runtime is {time.time() - global_time_start}')
     crypten.print('Evaluating global model...')
     avg_loss, avg_acc = global_net.evaluate(test)
     crypten.print(f'avg_loss {avg_loss}, avg_acc {avg_acc}')
+    crypten.print(comm.get().print_communication_stats())
+    
 
 
 # shares = secret_share(num_clients, client, train, test, epochs)
 # print(shares)
 
 
+# args 
+# 1 = num clients
+# 2 = size of dataset 
+# 3 = epochs
+
 def main():
+    crypten.init()
+    torch.set_num_threads(1)
+
 
     if len(sys.argv) < 4:
         print("Missing Arguments")
 
-    crypten.init()
-    torch.set_num_threads(1)
+    
 
 
     SIZE = int(sys.argv[2])
@@ -271,8 +328,12 @@ def main():
         net = FederatedNet()
         client.append(net)
 
+    
+
     shares = secret_share(num_clients, client, train, test, epochs, SIZE)
     print(shares)
+
+    
 
 if __name__ == "__main__":
     main()
