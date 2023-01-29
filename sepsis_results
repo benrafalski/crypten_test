@@ -1,0 +1,234 @@
+bugati@DESKTOP-M6DCMAP:/mnt/c/Users/benrafalski/Documents/Programs/Crypten/crypten_test$ python3 fed_avg_crypten.py 10 10 100
+Starting epoch 1
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 1 accuracy: 0.940000057220459, Loss: 7.25655, Time: 0.89153
+Avg server time: 0.07752742767333984, Avg client time: 0.0008241868019104004
+Starting epoch 2
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 2 accuracy: 0.9199999570846558, Loss: 26.0, Time: 0.82163
+Avg server time: 0.07331643104553223, Avg client time: 0.0006920170783996583
+Starting epoch 3
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 3 accuracy: 0.8999999761581421, Loss: 20.6, Time: 0.78787
+Avg server time: 0.07075538635253906, Avg client time: 0.0006242156028747559
+Starting epoch 4
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 4 accuracy: 0.9399999380111694, Loss: 16.4, Time: 0.789
+Avg server time: 0.07060720920562744, Avg client time: 0.0006542706489562988
+Starting epoch 5
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 5 accuracy: 0.550000011920929, Loss: 27.2, Time: 0.82025
+Avg server time: 0.07279863357543945, Avg client time: 0.0007140946388244629
+Starting epoch 6
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 6 accuracy: 0.8400000333786011, Loss: 22.2, Time: 0.79164
+Avg server time: 0.07059037685394287, Avg client time: 0.0006732869148254394
+Starting epoch 7
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 7 accuracy: 0.8700000643730164, Loss: 17.0, Time: 0.78998
+Avg server time: 0.07071812152862549, Avg client time: 0.0006323051452636719
+Starting epoch 8
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 8 accuracy: 0.8500000238418579, Loss: 22.2, Time: 0.85953
+Avg server time: 0.07649726867675781, Avg client time: 0.0007723283767700196
+Starting epoch 9
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 9 accuracy: 0.949999988079071, Loss: 24.6, Time: 0.88431
+Avg server time: 0.07557706832885742, Avg client time: 0.000896461009979248
+Starting epoch 10
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 10 accuracy: 0.9600000381469727, Loss: 11.0, Time: 0.89539
+Avg server time: 0.07624964714050293, Avg client time: 0.0007847881317138673
+Total Runtime is 8.359843254089355
+Evaluating global model...
+avg_loss 38.61579132080078, avg_acc 0.6138421297073364
+     ┌───────────────────────────────────────────┐
+0.960┤▖             ▖                       ▄▄▄▄▞│
+     │▝▀▀▀▀▄▄▄▄▄▄▄▀▀▌                     ▄▀     │
+0.892┤              ▐             ▗     ▄▀       │
+     │               ▌       ▗▄▄▀▀▘▀▀▀▀▀         │
+0.823┤               ▐      ▗▘                   │
+0.755┤                ▌     ▞                    │
+     │                ▐    ▗▘                    │
+0.687┤                ▝▖   ▞                     │
+     │                 ▚  ▐                      │
+0.618┤                 ▝▖ ▌                      │
+     │                  ▚▐                       │
+0.550┤                  ▝▌                       │
+     └┬──────────┬─────────┬──────────┬─────────┬┘
+     1.0        3.2       5.5        7.8     10.0 
+bugati@DESKTOP-M6DCMAP:/mnt/c/Users/benrafalski/Documents/Programs/Crypten/crypten_test$ python3 fed_avg_crypten.py 100 5 100
+Starting epoch 1
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 1 accuracy: 0.9420000314712524, Loss: 6.09571, Time: 139.20521
+Avg server time: 10.59501383304596, Avg client time: 0.029313968181610105
+Starting epoch 2
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 2 accuracy: 0.9319999814033508, Loss: 6.61, Time: 120.63422
+Avg server time: 11.329976034164428, Avg client time: 0.003726338624954224
+Starting epoch 3
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 3 accuracy: 0.9439999461174011, Loss: 6.61, Time: 119.80919
+Avg server time: 11.1152188539505, Avg client time: 0.004302625894546509
+Starting epoch 4
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 4 accuracy: 0.05400000140070915, Loss: 15.53, Time: 118.32201
+Avg server time: 11.04454231262207, Avg client time: 0.0033670616149902343
+Starting epoch 5
+        Starting batch 1 of 10
+        Starting batch 2 of 10
+        Starting batch 3 of 10
+        Starting batch 4 of 10
+        Starting batch 5 of 10
+        Starting batch 6 of 10
+        Starting batch 7 of 10
+        Starting batch 8 of 10
+        Starting batch 9 of 10
+        Starting batch 10 of 10
+Epoch 5 accuracy: 0.9330000281333923, Loss: 6.61, Time: 117.54844
+Avg server time: 10.84852442741394, Avg client time: 0.004224517345428467
+Total Runtime is 619.4513609409332
+Evaluating global model...
+avg_loss 17.974021911621094, avg_acc 0.7675263285636902
+    ┌────────────────────────────────────────────┐
+0.94┤▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌                    ▞│
+    │                      ▝▖                  ▞ │
+0.80┤                       ▝▖                ▞  │
+    │                        ▝▖              ▞   │
+0.65┤                         ▝▖            ▞    │
+0.50┤                          ▝▖          ▞     │
+    │                           ▚         ▞      │
+0.35┤                            ▚       ▞       │
+    │                             ▚     ▞        │
+0.20┤                              ▚   ▞         │
+    │                               ▚ ▞          │
+0.05┤                                ▜           │
+    └┬──────────┬──────────┬─────────┬──────────┬┘
+     1          2          3         4          5 
+bugati@DESKTOP-M6DCMAP:/mnt/c/Users/benrafalski/Documents/Programs/Crypten/crypten_test$ 
