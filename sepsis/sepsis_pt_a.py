@@ -11,11 +11,13 @@ from torch.utils.data import Subset, DataLoader
 from statistics import mean
 from sepsis_dataset import SepsisDataset, split_data_loaders
 
+
+
 class Client(nn.Module):
     def __init__(self, hidden):
         super(Client, self).__init__()
-        self.fc1 = nn.Linear(3, hidden)
-        self.fc2 = nn.Linear(hidden, hidden)
+        self.fc1 = nn.Linear(3, 10)
+        self.fc2 = nn.Linear(10, hidden)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))

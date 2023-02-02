@@ -322,8 +322,8 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
 
 # args 
 # 1 = num clients
-# 2 = size of dataset 
-# 3 = epochs
+# 2 = epochs
+# 3 = size of dataset
 
 def main():
     crypten.init()
@@ -356,3 +356,26 @@ def main():
 if __name__ == "__main__":
     main()
 
+# train first 2 layers on the client side
+# secret share the output to the servers
+# train the last 2 layers on the server side
+# send the output to each client
+# each client updates their local models -> for this step, this is the backward pass
+# each client secret shares their weights and bias to the servers
+# the servers then update the global model
+# each client then updates their local model with the global params
+# ... problem: servers and clients need to send data back and forth twice each epoch
+
+# train first 2 layers on the client side
+# clients secret share the output and the weights and biases to the servers
+# update the global model with the aggregated client weight and biases
+# train the last 2 layers on the server side
+# send the output and the global weight and biases to each client
+# each client then updates their local model with the global params
+# each client updates their local models -> for this step, this is the backward pass
+# ... problem: when the clients share their weight and bias in step 3
+# ... the weights and biases will be unchanged since the last round.
+# ... I realized this when Manazir told me that the weights and biases only 
+# ... get updated when the backward pass is performed.
+# ... Thus, if the this method is used then training will be performed on the old
+# ... since the parameter updates will be performed out of order
