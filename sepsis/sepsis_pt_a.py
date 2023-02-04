@@ -11,6 +11,8 @@ from torch.utils.data import Subset, DataLoader
 from statistics import mean
 from sepsis_dataset import SepsisDataset, split_data_loaders
 
+# 1000/n
+# 100 = 10
 
 
 class Client(nn.Module):
