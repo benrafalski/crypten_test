@@ -27,12 +27,12 @@ class DeviceDataLoader(DataLoader):
             return len(self.dl)
 
 class SepsisDataset(Dataset):
-    def __init__(self, train):
+    def __init__(self, train, num_clients):
         file_out = pd.read_csv('sepsis/sepsis_data/sepsis_survival_primary_cohort.csv')
 
         if train:
-            x = file_out.iloc[0:100000, 0:3].values
-            y = file_out.iloc[0:100000, 3].values
+            x = file_out.iloc[0:num_clients*1000, 0:3].values
+            y = file_out.iloc[0:num_clients*1000, 3].values
         else:
             x = file_out.iloc[100000:110203, 0:3].values
             y = file_out.iloc[100000:110203, 3].values

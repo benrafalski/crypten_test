@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import torch
@@ -15,6 +16,7 @@ import time
 from statistics import mean
 import plotext as plt
 import logging
+
 
 # mpc_additive_merging = [0.40, 0.58, 0.65, 0.72, 0.73, 0.9, 0.85, 0.89, 0.96, 0.92, 0.94, 0.95, 0.91, 0.96, 0.96, 0.94, 0.88, 0.9, 0.9, 0.93]
 # mpc_additive_merging = [acc*100 for acc in mpc_additive_merging]
@@ -86,22 +88,119 @@ class FederatedNet(nn.Module):
         self.fc4 = nn.Linear(5, 1)
         self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
 
-    def forward_client(self, x_batch):
+    def forward(self, x_batch):
         x = F.relu(self.fc1(x_batch))
         x = F.relu(self.fc2(x))
         return x
 
     def forward_server(self, x):
         x = F.relu(self.fc3(x))
-        x = torch.sigmoid(self.fc4(x).view(-1, 10))
-        return x
+        return torch.sigmoid(self.fc4(x).view(-1, 10))
+        # return torch.softmax(self.fc4(x), dim=1)
 
     def forward_testing(self, x_batch):
         x = F.relu(self.fc1(x_batch))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        x = torch.sigmoid(self.fc4(x).view(-1, 10))
-        return x
+        return torch.sigmoid(self.fc4(x).view(-1, 10))
+
+    # return the dictionary of the layers
+    def get_track_layers(self):
+        return self.track_layers
+    
+    # sets each layer's weight and bias to the weight and bias given as argument
+    def apply_parameters(self, parameters_dict):
+        with torch.no_grad():
+            for layer_name in parameters_dict:
+                self.track_layers[layer_name].weight.data *= 0
+                self.track_layers[layer_name].bias.data *= 0
+                self.track_layers[layer_name].weight.data += parameters_dict[layer_name]['weight']
+                self.track_layers[layer_name].bias.data += parameters_dict[layer_name]['bias']
+
+    def apply_parameters_server(self, parameters_dict):
+        with torch.no_grad():
+            layers = ['fc1', 'fc2']
+            for layer_name in layers:
+                self.track_layers[layer_name].weight.data *= 0
+                self.track_layers[layer_name].bias.data *= 0
+                self.track_layers[layer_name].weight.data += parameters_dict[layer_name]['weight'].get_plain_text()
+                self.track_layers[layer_name].bias.data += parameters_dict[layer_name]['bias'].get_plain_text()
+    
+    
+    # returns a parameter dictionary for each layer
+    # dictionary is of the form {"weight": w, "bias": b}
+    def get_parameters(self):
+        parameters_dict = dict()
+        for layer_name in self.track_layers:
+            parameters_dict[layer_name] = {
+                'weight': self.track_layers[layer_name].weight.data, 
+                'bias': self.track_layers[layer_name].bias.data
+            }
+        return parameters_dict
+
+    def evaluate(self, dataset):
+        losses = []
+        accs = []
+        loss_criterion = torch.nn.BCELoss()
+        metric = BinaryAccuracy()
+        with torch.no_grad():
+            for batch in dataset:
+                X, y = batch
+                server_out = self.forward_testing(X)
+                y = torch.unsqueeze(y, 0)
+                loss = loss_criterion(server_out, y)
+                with torch.no_grad():
+                    acc = metric(server_out, y)
+                losses.append(loss)
+                accs.append(acc)
+        avg_loss = torch.stack(losses).mean().item()
+        avg_acc = torch.stack(accs).mean().item()
+        return (avg_loss, avg_acc)
+
+class FederatedNetCrypten(crypten.nn.Module):    
+    def __init__(self):
+        super().__init__()
+        self.fc1 = crypten.nn.Linear(3, 5)
+        self.relu1 = crypten.nn.ReLU()
+        self.fc2 = crypten.nn.Linear(5, 5)
+        self.relu2 = crypten.nn.ReLU()
+        self.fc3 = crypten.nn.Linear(5, 5)
+        self.relu3 = crypten.nn.ReLU()
+        self.fc4 = crypten.nn.Linear(5, 1)
+        self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
+
+        # self.layer1 = crypten.nn.Sequential(OrderedDict([
+        #     ('linear1', crypten.nn.Linear(3, 5)),
+        #     ('relu1',crypten.nn.ReLU()),
+        # ])
+        # )
+        # self.layer2 = crypten.nn.Sequential(
+        #     crypten.nn.Linear(5, 5),
+        #     crypten.nn.ReLU()
+        # )
+
+        self.layer3 = crypten.nn.Sequential(
+            crypten.nn.Linear(1000, 50),
+            crypten.nn.ReLU()
+        )
+
+    def forward(self, x_batch):
+        
+        x = self.relu1(self.fc1(x_batch))
+        x = self.relu2(self.fc2(x))
+        x = self.relu3(self.fc3(x))
+        return self.fc4(x)
+
+    def forward_server(self, x):
+        x = F.relu(self.fc3(x))
+        return torch.sigmoid(self.fc4(x).view(-1, 10))
+        # return torch.softmax(self.fc4(x), dim=1)
+
+    def forward_testing(self, x_batch):
+        x = F.relu(self.fc1(x_batch))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        return torch.sigmoid(self.fc4(x).view(-1, 10))
 
     # return the dictionary of the layers
     def get_track_layers(self):
@@ -187,45 +286,54 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
             if batch_num % (SIZE//100) == 0:
                 crypten.print(f'\tStarting batch {batch_num} of {SIZE//10}')
 
-            global_params = global_net.get_parameters()
+            # global_params = global_net.get_parameters()
 
             X = [a for a, _ in dataset]
+
+            # print(X[0].shape)
             y = [a for _, a in dataset]
 
-
+            # crypten.print(f'paramer: {list(client[0].parameters())[0].clone()}')
             client_times = []
             x = []
             # 1. train 2 layers on client side
             for i in range(num_clients):
                 client_i_start = time.time()
-                client[i].apply_parameters(global_params)
-                x.append(client[i].forward_client(X[i]))
+                # client[i].apply_parameters(global_params)
+                x.append(client[i](X[i]))
                 client_i_end = time.time()-client_i_start
                 client_times.append(client_i_end)
 
             
             # 2. grab the weights and biases from each client and secret share them with the server
-            layer1_weights = []
-            layer1_bias = []
-            layer2_weights = []
-            layer2_bias = []
+            # layer1_weights = []
+            # layer1_bias = []
+            # layer2_weights = []
+            # layer2_bias = []
 
-            for i in range(num_clients):
-                client_params_start = time.time()
-                client_params = client[i].get_parameters()
-                layer1_weights.append(client_params['fc1']['weight'])
-                layer1_bias.append(client_params['fc1']['bias'])
-                layer2_weights.append(client_params['fc2']['weight'])
-                layer2_bias.append(client_params['fc2']['bias'])
-                client_params_end = time.time() - client_params_start
-                client_times[i] += client_params_end
+            # for i in range(num_clients):
+            #     client_params_start = time.time()
+            #     client_params = client[i].get_parameters()
+            #     layer1_weights.append(client_params['fc1']['weight'])
+            #     layer1_bias.append(client_params['fc1']['bias'])
+            #     layer2_weights.append(client_params['fc2']['weight'])
+            #     layer2_bias.append(client_params['fc2']['bias'])
+            #     client_params_end = time.time() - client_params_start
+            #     client_times[i] += client_params_end
+
+            # for i in range(num_clients):
+            #     client_share_start = time.time()
+            #     layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
+            #     layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
+            #     layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
+            #     layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
+            #     client_share_end = time.time() - client_share_start
+            #     client_times[i] += client_share_end
+
 
             for i in range(num_clients):
                 client_share_start = time.time()
-                layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
-                layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
-                layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
-                layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
+                x[i] = crypten.cryptensor(x[i], src=i)
                 client_share_end = time.time() - client_share_start
                 client_times[i] += client_share_end
 
@@ -234,55 +342,66 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
             
             # 3. average each weight and bias recieved from the client
             server_time_start = time.time()
-            layer1_weights_total = layer1_weights[0]
-            layer1_bias_total = layer1_bias[0]
-            layer2_weights_total = layer2_weights[0]
-            layer2_bias_total = layer2_bias[0]
+            # layer1_weights_total = layer1_weights[0]
+            # layer1_bias_total = layer1_bias[0]
+            # layer2_weights_total = layer2_weights[0]
+            # layer2_bias_total = layer2_bias[0]
 
-            for i in range(1, num_clients):
-                layer1_weights_total += layer1_weights[i]
-                layer1_bias_total += layer1_bias[i]
-                layer2_weights_total += layer2_weights[i]
-                layer2_bias_total += layer2_bias[i]
+            # for i in range(1, num_clients):
+            #     layer1_weights_total += layer1_weights[i]
+            #     layer1_bias_total += layer1_bias[i]
+            #     layer2_weights_total += layer2_weights[i]
+            #     layer2_bias_total += layer2_bias[i]
 
-            layer1_weights_total /= comm.get().get_world_size()
-            layer1_bias_total /= comm.get().get_world_size()
-            layer2_weights_total /= comm.get().get_world_size()
-            layer2_bias_total /= comm.get().get_world_size()
+            # layer1_weights_total /= comm.get().get_world_size()
+            # layer1_bias_total /= comm.get().get_world_size()
+            # layer2_weights_total /= comm.get().get_world_size()
+            # layer2_bias_total /= comm.get().get_world_size()
 
             # 4. update the global weight and biases with the averaged parameters
-            curr_parameters = global_net.get_parameters()
-            new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
+            # curr_parameters = global_net.get_parameters()
+            # new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
 
-            client_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
+            # client_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
 
-            client_parameters['fc1']['weight'] = layer1_weights_total
-            client_parameters['fc1']['bias'] = layer1_bias_total
-            client_parameters['fc2']['weight'] = layer2_weights_total
-            client_parameters['fc2']['bias'] = layer2_bias_total
+            # client_parameters['fc1']['weight'] = layer1_weights_total
+            # client_parameters['fc1']['bias'] = layer1_bias_total
+            # client_parameters['fc2']['weight'] = layer2_weights_total
+            # client_parameters['fc2']['bias'] = layer2_bias_total
 
-            for layer_name in client_parameters:
-                new_parameters[layer_name]['weight'] = client_parameters[layer_name]['weight']
-                new_parameters[layer_name]['bias'] = client_parameters[layer_name]['bias']
+            # for layer_name in client_parameters:
+            #     new_parameters[layer_name]['weight'] = client_parameters[layer_name]['weight']
+            #     new_parameters[layer_name]['bias'] = client_parameters[layer_name]['bias']
 
-            global_net.apply_parameters_server(new_parameters)
-
+            # global_net.apply_parameters_server(new_parameters)
+            # crypten.print(f'paramer: {list(client[0].parameters())[0].clone().grad}')
             # 5. continue training the global model for the last 2 layers
             sum_clients = x[0]
-            for i in range(1, num_clients):
-                sum_clients += x[i]
+            
 
-            sum_clients /= num_clients
-            # sum_clients = F.relu(sum_clients)
+            for i in range(1, num_clients):
+                sum_clients = sum_clients + x[i]
+
+            sum_clients = sum_clients / num_clients
+            # sum_clients = F.relu(sum_clients.get_plain_text())
+            # sum_clients = sum_clients.get_plain_text()
+            dummy_input = torch.empty(1, 1, 5, 3)
+            global_net = crypten.nn.from_pytorch(global_net, dummy_input)
 
             output = global_net.forward_server(sum_clients)
 
+            # crypten.print(output)
+
             output = [output] * num_clients
 
-            optimizer = [torch.optim.SGD(client[i].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6) for i in range(num_clients)]
-            loss_criterion = torch.nn.BCELoss()
+            # crypten.print(f'paramer: {list(client[0].parameters())[0].clone().grad}')
 
             a = list(client[0].parameters())[0].clone()
+
+            optimizer = [torch.optim.SGD(client[i].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6) for i in range(num_clients)]
+            loss_criterion = torch.nn.MSELoss()
+
+            # y = [label.reshape(10, 1) for label in y]
 
             y = [torch.unsqueeze(label, 0) for label in y]
 
@@ -290,45 +409,28 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
 
             for i in range(num_clients):
                 loss[i].backward(retain_graph=True)
+                # loss[i].backward()
                 
             for i in range(num_clients):
                 optimizer[i].step()
-                optimizer[i].zero_grad()
-                loss[i].detach()
-
-
-            b = list(client[1].parameters())[0].clone()
-            # crypten.print(a)
-            # crypten.print(list(client[1].parameters())[0].clone())
-            # crypten.print(torch.equal(a.data, b.data))
+                # optimizer[i].zero_grad()
+                # loss[i].detach()
 
             metric = BinaryAccuracy()
             with torch.no_grad():
                 avg_acc = [metric(output[i], y[i]) for i in range(num_clients)]
 
-
-            new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
-            client_parameters_new = [client[i].get_parameters() for i in range(num_clients)]
-
-            
-
-            
-            for i in range(num_clients):
-                for layer_name in client_parameters:
-                    new_parameters[layer_name]['weight'] += client_parameters_new[i][layer_name]['weight']
-                    new_parameters[layer_name]['bias'] += client_parameters_new[i][layer_name]['bias']  
-            
-
-            for layer_name in client_parameters:
-                new_parameters[layer_name]['weight'] /= num_clients
-                new_parameters[layer_name]['bias'] /= num_clients
-            
-
-
-            global_net.apply_parameters(new_parameters)
-
             for l in loss:
                 losses.append(l)
+
+            b = list(client[0].parameters())[0].clone()
+
+            crypten.print(torch.equal(a.data, b.data))
+            # return
+
+            # crypten.print(f"server {global_net.get_parameters()}")
+            # crypten.print(f"client0 {client[0].get_parameters()}")
+            # crypten.print(f"client1 {client[1].get_parameters()}")
             server_time_end = time.time() - server_time_start
             server_times_avg.append(server_time_end)
         
@@ -350,6 +452,7 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
         plt.theme('matrix')
         plt.plotsize(50, 15)
         plt.show()
+        crypten.print([round(e, 2) for e in epoch_accuracy])
     
 
 # args 
@@ -361,6 +464,26 @@ def main():
     crypten.init()
     torch.set_num_threads(1)
     logging.basicConfig(level=logging.INFO)
+
+
+    fed = FederatedNetCrypten()
+    print(fed.fc1.bias)
+    fed.encrypt()
+
+    emp = crypten.cryptensor(torch.empty(10,3))
+    
+
+    
+
+
+    
+    fed.forward(emp)
+
+    fed.decrypt()
+
+    print(fed.fc1.bias)
+
+    return
 
     if len(sys.argv) < 3:
         print("Missing Argument")
@@ -379,6 +502,8 @@ def main():
 
     client_datasets = [DataLoader(ClientDataset(i, file_out, data_per_client), batch_size=10, shuffle=True) for i in range(num_clients)]
     clients = [FederatedNet() for _ in range(num_clients)]
+
+    # crypten.print(f'paramer: {list(clients[0].parameters())[0].grad}')
 
     secret_share(num_clients, clients, client_datasets, test_loader, epochs, data_per_client)
 

@@ -66,6 +66,7 @@ class FederatedNet(torch.nn.Module):
                 optimizer.step()
                 optimizer.zero_grad()
                 loss.detach()
+                
                 losses.append(loss)
                 accs.append(acc)
             avg_loss = torch.stack(losses).mean().item()

@@ -18,4 +18,10 @@ class Client:
         net.apply_parameters(parameters_dict)
         train_history = net.fit(self.dataset, device, epochs_per_client, learning_rate, batch_size)
         print('{}: Loss = {}, Accuracy = {}'.format(self.client_id, round(train_history[-1][0], 4), round(train_history[-1][1], 4)))
+        
+
+        # if(self.client_id == "client_0"):
+        #     print(f"{self.client_id} params {net.get_parameters()['fc1']['bias']}")
+        
+        
         return net.get_parameters()
