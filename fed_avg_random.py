@@ -15,6 +15,8 @@ import time
 from statistics import mean
 import plotext as plt
 import logging
+import random
+from sklearn.datasets import make_blobs
 
 # mpc_additive_merging = [0.40, 0.58, 0.65, 0.72, 0.73, 0.9, 0.85, 0.89, 0.96, 0.92, 0.94, 0.95, 0.91, 0.96, 0.96, 0.94, 0.88, 0.9, 0.9, 0.93]
 # mpc_additive_merging = [acc*100 for acc in mpc_additive_merging]
@@ -28,9 +30,9 @@ import logging
 
 class TestingDataset(Dataset):
     def __init__(self):
-        file_out = pd.read_csv('sepsis/sepsis_data/sepsis_survival_study_cohort.csv')
-        x = file_out.iloc[1:19001, 0:3].values
-        y = file_out.iloc[1:19001, 3].values
+        x, y = make_blobs(n_samples=110204, centers=3, n_features=4)
+        x = x[100000:110203]
+        y = y[100000:110203]
 
         # feature scaling
         sc = StandardScaler()
@@ -39,7 +41,7 @@ class TestingDataset(Dataset):
 
         # convert to tensors
         self.X_train = torch.tensor(x_train, dtype=torch.float32)
-        self.y_train = torch.tensor(y_train, dtype=torch.float32)
+        self.y_train = torch.tensor(y_train)
 
     def __len__(self):
         return len(self.y_train)
@@ -50,9 +52,13 @@ class TestingDataset(Dataset):
 
 class ClientDataset(Dataset):
     def __init__(self, client_num, file_out, data_per_client):
-        self.file_out = file_out
-        x = self.file_out.iloc[client_num*data_per_client:(client_num+1)*data_per_client, 0:3].values
-        y = self.file_out.iloc[client_num*data_per_client:(client_num+1)*data_per_client, 3].values
+        x, y = file_out
+
+        # x = x[client_num*data_per_client:(client_num+1)*data_per_client]
+        x = x[client_num*data_per_client:(client_num+1)*data_per_client]
+        y = y[client_num*data_per_client:(client_num+1)*data_per_client]
+
+        print(x)
 
         # feature scaling
         sc = StandardScaler()
@@ -61,7 +67,7 @@ class ClientDataset(Dataset):
 
         # convert to tensors
         self.X_train = torch.tensor(x_train, dtype=torch.float32)
-        self.y_train = torch.tensor(y_train, dtype=torch.float32)
+        self.y_train = torch.tensor(y_train)
 
     def __len__(self):
         return len(self.y_train)
@@ -80,10 +86,10 @@ def split_data_loaders(data):
 class FederatedNet(nn.Module):    
     def __init__(self):
         super().__init__()
-        self.fc1 = nn.Linear(3, 5)
+        self.fc1 = nn.Linear(4, 5)
         self.fc2 = nn.Linear(5, 5)
         self.fc3 = nn.Linear(5, 5)
-        self.fc4 = nn.Linear(5, 1)
+        self.fc4 = nn.Linear(5, 3)
         self.track_layers = {'fc1': self.fc1, 'fc2': self.fc2, 'fc3': self.fc3, 'fc4': self.fc4}
 
     def forward_client(self, x_batch):
@@ -93,14 +99,14 @@ class FederatedNet(nn.Module):
 
     def forward_server(self, x):
         x = F.relu(self.fc3(x))
-        x = torch.sigmoid(self.fc4(x).view(-1, 10))
+        x = F.softmax(self.fc4(x), dim=1)
         return x
 
     def forward_testing(self, x_batch):
         x = F.relu(self.fc1(x_batch))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        x = torch.sigmoid(self.fc4(x).view(-1, 10))
+        x = F.softmax(self.fc4(x), dim=1)
         return x
 
     # return the dictionary of the layers
@@ -140,20 +146,23 @@ class FederatedNet(nn.Module):
     def evaluate(self, dataset):
         losses = []
         accs = []
-        loss_criterion = torch.nn.BCELoss()
-        metric = BinaryAccuracy()
+        loss_criterion = torch.nn.CrossEntropyLoss()
+        # metric = BinaryAccuracy()
         with torch.no_grad():
             for batch in dataset:
                 X, y = batch
                 server_out = self.forward_testing(X)
-                y = torch.unsqueeze(y, 0)
+                # y = torch.unsqueeze(y, 0)
                 loss = loss_criterion(server_out, y)
+                # with torch.no_grad():
+                #     acc = metric(server_out, y)
                 with torch.no_grad():
-                    acc = metric(server_out, y)
+                    _, predictions = torch.max(server_out, dim=1)
+                    acc = torch.sum(predictions == y).item() / len(predictions)
                 losses.append(loss)
                 accs.append(acc)
         avg_loss = torch.stack(losses).mean().item()
-        avg_acc = torch.stack(accs).mean().item()
+        avg_acc = mean(accs)
         return (avg_loss, avg_acc)
 
     
@@ -220,6 +229,15 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
                 client_params_end = time.time() - client_params_start
                 client_times[i] += client_params_end
 
+            # for i in range(num_clients):
+            #     client_share_start = time.time()
+            #     layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=i)
+            #     layer1_bias[i] = crypten.cryptensor(layer1_bias[i], src=i)
+            #     layer2_weights[i] = crypten.cryptensor(layer2_weights[i], src=i)
+            #     layer2_bias[i] = crypten.cryptensor(layer2_bias[i], src=i)
+            #     client_share_end = time.time() - client_share_start
+            #     client_times[i] += client_share_end
+
             for i in range(num_clients):
                 client_share_start = time.time()
                 layer1_weights[i] = crypten.cryptensor(layer1_weights[i], src=0)
@@ -280,11 +298,11 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
             output = [output] * num_clients
 
             optimizer = [torch.optim.SGD(client[i].parameters(), lr=0.005, momentum=0.9, weight_decay=1e-6) for i in range(num_clients)]
-            loss_criterion = torch.nn.BCELoss()
+            loss_criterion = torch.nn.CrossEntropyLoss()
 
             a = list(client[0].parameters())[0].clone()
 
-            y = [torch.unsqueeze(label, 0) for label in y]
+            # y = [torch.unsqueeze(label, 0) for label in y]
 
             loss = [loss_criterion(output[i], y[i]) for i in range(num_clients)]
 
@@ -302,10 +320,15 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
             # crypten.print(list(client[1].parameters())[0].clone())
             # crypten.print(torch.equal(a.data, b.data))
 
-            metric = BinaryAccuracy()
-            with torch.no_grad():
-                avg_acc = [metric(output[i], y[i]) for i in range(num_clients)]
+            # metric = BinaryAccuracy()
+            # with torch.no_grad():
+            #     avg_acc = [metric(output[i], y[i]) for i in range(num_clients)]
 
+            with torch.no_grad():
+                for i in range(num_clients):
+                    _, predictions = torch.max(output[i], dim=1)
+                    acc = torch.sum(predictions == y[i]).item() / len(predictions)
+                    avg_acc.append(acc)
 
             new_parameters = dict([(layer_name, {'weight': 0, 'bias': 0}) for layer_name in curr_parameters])
             client_parameters_new = [client[i].get_parameters() for i in range(num_clients)]
@@ -333,7 +356,8 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
             server_times_avg.append(server_time_end)
         
         avg_loss = torch.stack(losses).mean().item()
-        avg_accuracy = torch.stack(avg_acc).mean().item()
+        # avg_accuracy = torch.stack(avg_acc).mean().item()
+        avg_accuracy = mean(avg_acc)
         epoch_accuracy.append(avg_accuracy)
         epoch_time_current = time.time() - epoch_time_start
         epoch_times.append(epoch_time_current)
@@ -356,6 +380,27 @@ def secret_share(num_clients, client, client_dataset, test, epochs=1, SIZE=1000)
 # 1 = num clients
 # 2 = epochs
 # 3 = size of dataset
+    
+class RandomDataset(Dataset):
+    def __init__(self, data_size):
+        random.seed(8560)
+        x, y = make_blobs(n_samples=data_size, centers=3, n_features=4)
+
+        # feature scaling
+        sc = StandardScaler()
+        x_train = sc.fit_transform(x)
+        y_train = y
+
+        # convert to tensors
+        self.X_train = torch.tensor(x_train, dtype=torch.float32)
+        self.y_train = torch.tensor(y_train)
+
+    def __len__(self):
+        return len(self.y_train)
+
+    def __getitem__(self, idx):
+        return self.X_train[idx], self.y_train[idx]
+
 
 def main():
     crypten.init()
@@ -367,20 +412,39 @@ def main():
 
 
     num_clients = int(sys.argv[1])
-    num_clients = 1000
     epochs = int(sys.argv[2])
     data_per_client = int(sys.argv[3])
 
 
     # make clients and datasets
-    file_out = pd.read_csv('sepsis/sepsis_data/sepsis_survival_primary_cohort.csv')
-    file_out.sample(frac=1)
+    # file_out = pd.read_csv('sepsis/sepsis_data/sepsis_survival_primary_cohort.csv')
+    # file_out.sample(frac=1)
 
-    test_dataset = TestingDataset()
+    # random.seed(8560)
+    # x, y = make_blobs()
+    # file_out = (x, y)
+
+    # test_dataset = TestingDataset()
+    # test_loader = DataLoader(test_dataset, batch_size=10, shuffle=True)
+
+    # client_datasets = [DataLoader(ClientDataset(i, file_out, data_per_client), batch_size=10, shuffle=True) for i in range(num_clients)]
+    # clients = [FederatedNet() for _ in range(num_clients)]
+
+    
+    n_samples = (num_clients * 100) + 10000
+    data = RandomDataset(n_samples)
+    train_dataset, test_dataset = random_split(data, [(num_clients * 100), 10000])
+    # train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=10, shuffle=True)
 
-    client_datasets = [DataLoader(ClientDataset(i, file_out, data_per_client), batch_size=10, shuffle=True) for i in range(num_clients)]
+    total_train_size = len(train_dataset)
+
+    client_datasets = random_split(train_dataset, [min(i + data_per_client, 
+            total_train_size) - i for i in range(0, total_train_size, data_per_client)])
+    
+    client_datasets = [DataLoader(c, batch_size=10, shuffle=True) for c in client_datasets]
     clients = [FederatedNet() for _ in range(num_clients)]
+
 
     secret_share(num_clients, clients, client_datasets, test_loader, epochs, data_per_client)
 

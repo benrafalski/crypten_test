@@ -6,6 +6,8 @@ from client import Client
 from args import parse_args
 import plotext as plt
 
+
+
 def main():
     args = parse_args()
     num_clients = args.clients
@@ -54,8 +56,10 @@ def main():
 
 
     global_net = to_device(FederatedNet(input_dim, classes), device)
+
     history = []
     round_acc = []
+
     for i in range(rounds):
         print('Start Round {} ...'.format(i + 1))
         curr_parameters = global_net.get_parameters()
