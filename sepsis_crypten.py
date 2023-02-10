@@ -54,6 +54,16 @@ class Network(torch.nn.Module):
         x = torch.nn.functional.relu(self.fc3(x))
         x = torch.sigmoid(self.fc4(x))
         return x
+        # if(x.size() == torch.Size([100, 3])):
+        #     x = torch.nn.functional.relu(self.fc1(x))
+        #     x = torch.nn.functional.relu(self.fc2(x))
+        #     return x
+        # else:
+        #     x = torch.nn.functional.relu(self.fc1(x))
+        #     x = torch.nn.functional.relu(self.fc2(x))
+        #     x = torch.nn.functional.relu(self.fc3(x))
+        #     x = torch.sigmoid(self.fc4(x))
+        #     return x
     
 crypten.common.serial.register_safe_class(Network)
 
@@ -90,7 +100,7 @@ torch.set_num_threads(1)
 
 
 
-@mpc.run_multiprocess(world_size=3)
+# @mpc.run_multiprocess(world_size=3)
 def examine_sources():
     # Create a different tensor on each rank
     rank = comm.get().get_rank()
@@ -111,10 +121,7 @@ x = examine_sources()
 batch_size = 10
 train_dataset = SepsisDataset(1000)
 
-net = Network()
-net = crypten.nn.from_pytorch(net, torch.empty(64, 3))
-net.encrypt()
-net.train()
+
 
 loss_criterion = crypten.nn.BCELoss()
 
@@ -137,18 +144,23 @@ loss_criterion = crypten.nn.BCELoss()
 # # labels = torch.cat([torch.cat([y for X, y in dataset], dim=0) for dataset in client_datasets], dim=0)
 
 
-# num_features = total_train_size
+num_features = 1000//5
 
 num_clients = 5
 features = torch.cat([torch.load(f'client_data_sepsis/features/client{i}_features.pth') for i in range(num_clients)], dim=0)
 labels = torch.cat([torch.load(f'client_data_sepsis/labels/client{i}_labels.pth') for i in range(num_clients)], dim=0)
 
 
-# @mpc.run_multiprocess(world_size=num_clients)
+# features = [torch.load(f'client_data_sepsis/features/client{i}_features.pth') for i in range(num_clients)]
+# labels = [torch.load(f'client_data_sepsis/labels/client{i}_labels.pth') for i in range(num_clients)]
+   
+
 def train_multiparty():
-    features = crypten.cat([crypten.load_from_party(f'client_data_sepsis/features/client{i}_features.pth', src=i) for i in range(num_clients)], dim=0)
-    labels = crypten.cat([crypten.load_from_party(f'client_data_sepsis/labels/client{i}_labels.pth', src=i) for i in range(num_clients)], dim=0)
-    # crypten.print(labels)
+    net = Network()
+    net = crypten.nn.from_pytorch(net, torch.empty(64, 3))
+    net.encrypt()
+    net.train()
+
     epoch_accuracies = []
     for epoch in range(5):
         crypten.print(f'\nEPOCH : {epoch+1}')
@@ -163,19 +175,117 @@ def train_multiparty():
                 crypten.print(f'\tStarting batch {batch_num} of {num_features//10}')
 
             X = x_batch
+            X = crypten.cryptensor(X)
             y = y_batch.unsqueeze(dim=0)
-            # y_enc = crypten.cryptensor(y) 
-
+            y = crypten.cryptensor(y) 
 
             output = net(X)
             output = output.view(-1, 10)
+
+            net.decrypt()
+            before = net._modules['fc2.bias'].data
+            net.encrypt()
+
+            # for param in net.parameters():
+            #     crypten.print(f'param {param}')
             
             loss = loss_criterion(output, y)  
             net.zero_grad() 
             loss.backward()  
             net.update_parameters(0.001)
+            
+            metric = BinaryAccuracy()
+            with torch.no_grad():
+                avg_acc = metric(output.get_plain_text(), y.get_plain_text())
+            
+            acc.append(avg_acc)
+
+            net.decrypt()
+            after = net._modules['fc2.bias'].data
+            net.encrypt()
+
+            crypten.print(torch.equal(after, before))
+
+        epoch_acc = torch.stack(acc).mean().item()
+        epoch_accuracies.append(epoch_acc)
+        crypten.print(f'Epoch accuracy: {epoch_acc}', in_order=True)
+
+train_multiparty()
+
+def train_multiparty_new():
+    epoch_accuracies = []
+    for epoch in range(5):
+        crypten.print(f'\nEPOCH : {epoch+1}')
+        acc = []
+        batch_num = 0   
+        for i in range(0, num_features, batch_size):
+            for idx in range(len(features)):
+                x_batch = features[idx][i:(i+batch_size)]
+                y_batch = labels[idx][i:(i+batch_size)]
+                batch_num += 1
+
+                if batch_num % ((num_features//10)//10) == 0:
+                    crypten.print(f'\tStarting batch {batch_num} of {num_features//10}')
+
+                X = x_batch
+                X = crypten.cryptensor(X)
+                y = y_batch.unsqueeze(dim=0)
+                y = crypten.cryptensor(y) 
+
+                output = net(X)
+                output = output.view(-1, 10)
+                
+                loss = loss_criterion(output, y)  
+                net.zero_grad() 
+                loss.backward()  
+                net.update_parameters(0.001)
+                
+                metric = BinaryAccuracy()
+                with torch.no_grad():
+                    avg_acc = metric(output.get_plain_text(), y.get_plain_text())
+                
+                acc.append(avg_acc)
+
+            epoch_acc = torch.stack(acc).mean().item()
+            epoch_accuracies.append(epoch_acc)
+            crypten.print(f'Epoch accuracy: {epoch_acc}', in_order=True)
 
 
+
+
+def train_multiparty_new():
+    epoch_accuracies = []
+    for epoch in range(5):
+        crypten.print(f'\nEPOCH : {epoch+1}')
+        acc = []
+        batch_num = 0
+        for i in range(0, num_features, batch_size):
+            x_batch = features[i:(i+batch_size)]
+            y_batch = labels[i:(i+batch_size)]
+            batch_num += 1
+
+            if batch_num % ((num_features//10)//10) == 0:
+                crypten.print(f'\tStarting batch {batch_num} of {num_features//10}')
+
+            X = x_batch
+            X = crypten.cryptensor(X)
+            y = y_batch.unsqueeze(dim=0)
+            y = crypten.cryptensor(y) 
+
+
+            print(X.size())
+            
+
+            output = net(X)
+            output = output.view(-1, 10)
+
+            return
+            
+            loss = loss_criterion(output, y)  
+            net.zero_grad() 
+            loss.backward()  
+            net.update_parameters(0.001)
+            
             metric = BinaryAccuracy()
             with torch.no_grad():
                 avg_acc = metric(output.get_plain_text(), y.get_plain_text())
@@ -184,12 +294,9 @@ def train_multiparty():
 
         epoch_acc = torch.stack(acc).mean().item()
         epoch_accuracies.append(epoch_acc)
-        crypten.print(f'Epoch accuracy: {epoch_acc}')
+        crypten.print(f'Epoch accuracy: {epoch_acc}', in_order=True)
 
-
-# train_multiparty()
-
-
+# train_multiparty_new()
 # train = client_datasets[0]
 # epoch_accuracies = []
 # for epoch in range(5):
@@ -239,7 +346,7 @@ def train_multiparty():
 
 num_clients = 5
 num_features = 1000
-@mpc.run_multiprocess(world_size=num_clients)
+@mpc.run_multiprocess(world_size=2)
 def train_multiparty2():
     rank = comm.get().get_rank()
     crypten.print(f'rank {rank}')
@@ -311,6 +418,6 @@ def train_multiparty2():
         crypten.print(f'Epoch accuracy: {epoch_acc}  {epoch_acc*2}')
 
 
-train_multiparty2()
+# train_multiparty2()
 
 
